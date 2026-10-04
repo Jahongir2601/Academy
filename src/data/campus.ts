@@ -41,6 +41,8 @@ export interface BuildingDef {
   id: string;
   /** Konsepsiyadagi zona raqami (3-bo‘lim ro‘yxati). */
   no: number;
+  /** Bitta zona ikki binoga bo‘lingan bo‘lsa — harf (5a / 5b). */
+  sub?: string;
   name: string;
   nameUz: string;
   ring: Ring;
@@ -204,6 +206,7 @@ export const BUILDINGS: BuildingDef[] = [
   {
     id: 'datalab',
     no: 5,
+    sub: 'a',
     name: 'Data, AI & Innovation Centre',
     nameUz: 'Data Lab · AI Lab · Fintech & CBDC Lab',
     ring: 2,
@@ -225,6 +228,7 @@ export const BUILDINGS: BuildingDef[] = [
   {
     id: 'secure',
     no: 5,
+    sub: 'b',
     name: 'Secure Data Lab + Data Centre',
     nameUz: 'Maxfiy mikroma’lumotlar laboratoriyasi',
     ring: 3,
@@ -365,6 +369,7 @@ export const BUILDINGS: BuildingDef[] = [
   {
     id: 'admin',
     no: 14,
+    sub: 'a',
     name: 'Administration',
     nameUz: 'Ma’muriyat',
     ring: 2,
@@ -379,6 +384,7 @@ export const BUILDINGS: BuildingDef[] = [
   {
     id: 'energy',
     no: 14,
+    sub: 'b',
     name: 'Technical & Energy Centre',
     nameUz: 'Texnik zona',
     ring: 2,
@@ -497,3 +503,6 @@ export function buildingHeight(b: BuildingDef): number {
 export function rectCenter(r: Rect): [number, number] {
   return [(r[0] + r[1]) / 2, (r[2] + r[3]) / 2];
 }
+
+/** Belgidagi raqam: zona raqami va kerak bo‘lsa harf (5a, 14b). */
+export const numLabel = (d: { no: number; sub?: string }) => `${d.no}${d.sub ?? ''}`;

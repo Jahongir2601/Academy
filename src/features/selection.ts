@@ -5,7 +5,7 @@ import type { App } from '../app';
 import type { Shell } from '../ui/shell';
 import { h, icon, fmt } from '../ui/dom';
 import {
-  BUILDINGS, ZONES, AREA_TARGETS, buildingGFA, buildingHeight, rectArea, rectCenter,
+  BUILDINGS, ZONES, AREA_TARGETS, buildingGFA, buildingHeight, numLabel, rectArea, rectCenter,
   type BuildingDef, type ZoneDef,
 } from '../data/campus';
 
@@ -56,12 +56,12 @@ export class Selection {
   }
 
   private makeLabels() {
-    const add = (id: string, no: number, x: number, y: number, z: number, zone: boolean) => {
+    const add = (id: string, no: string, x: number, y: number, z: number, zone: boolean) => {
       const count = h('span', { class: 'count' });
       const el = h(
         'div',
         { class: `blabel${zone ? ' zone' : ''}`, title: SHORT[id] },
-        h('span', { class: 'numchip' }, String(no)),
+        h('span', { class: 'numchip' }, no),
         h('span', { class: 'lname' }, SHORT[id] ?? id),
         count,
       );
@@ -80,11 +80,11 @@ export class Selection {
       let y = buildingHeight(b) + 2;
       if (b.id === 'grandHall') y = 29;
       if (b.id === 'conference') y = 26;
-      add(b.id, b.no, cx, y, cz, false);
+      add(b.id, numLabel(b), cx, y, cz, false);
     }
     for (const z of ZONES) {
       const [cx, cz] = rectCenter(z.rect);
-      add(z.id, z.no, cx, 2, z.id === 'courtyard' ? cz + 8 : cz, true);
+      add(z.id, numLabel(z), cx, 2, z.id === 'courtyard' ? cz + 8 : cz, true);
     }
   }
 
@@ -196,7 +196,7 @@ export class Selection {
     const wrap = h('div', { style: 'display:contents' });
     const ringChip = h('span', { class: `ring-chip r${d.ring}` }, `Ring ${d.ring}`);
     wrap.append(
-      h('div', { class: 'info-head' }, h('span', { class: 'numchip', title: 'Konsepsiyadagi zona raqami' }, String(d.no)), ringChip),
+      h('div', { class: 'info-head' }, h('span', { class: 'numchip', title: 'Konsepsiyadagi zona raqami' }, numLabel(d)), ringChip),
       h('h2', {}, d.name),
       h('p', { class: 'sub' }, d.nameUz),
       h('p', {}, d.summary),
