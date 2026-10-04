@@ -22,6 +22,8 @@ export class Environment {
   readonly moon: THREE.DirectionalLight;
   readonly stars: THREE.Points;
   state: EnvState;
+  /** Rang boshqaruviga qarab ekspozitsiya ko‘paytmasi (Realistik rejimda AgX uchun). */
+  exposureScale = 1;
   private pmrem: THREE.PMREMGenerator;
   private envScene = new THREE.Scene();
   private envMat: THREE.ShaderMaterial;
@@ -138,7 +140,9 @@ export class Environment {
 
   private makeGround(): THREE.Object3D {
     const m = getMaterials();
-    const g = new THREE.PlaneGeometry(9000, 9000);
+    // 9 km tekislik ikki uchburchak bo‘lsa, kamera yaqinida chuqurlik interpolyatsiyasi noaniq bo‘lib,
+    // yer 8 sm yuqoridagi yo‘lak va maysani «yopib» qo‘yadi — mayda kataklarga bo‘lamiz (~60 m)
+    const g = new THREE.PlaneGeometry(9000, 9000, 150, 150);
     g.rotateX(-Math.PI / 2);
     const uv = g.getAttribute('uv');
     for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 150, uv.getY(i) * 150);
@@ -223,7 +227,7 @@ export class Environment {
     const fogDay = new THREE.Color(0xc8d5df).lerp(new THREE.Color(0xe8c9a8), low * 0.6 * day);
     this.fog.color.copy(fogDay.lerp(new THREE.Color(0x0b1020), night));
 
-    this.renderer.toneMappingExposure = 0.8 - 0.08 * low * day + 0.2 * night;
+    this.renderer.toneMappingExposure = (0.8 - 0.08 * low * day + 0.2 * night) * this.exposureScale;
 
     const m = getMaterials();
     for (const e of m.nightEmissive) e.mat.emissiveIntensity = e.max * smooth(4, -4, alt);

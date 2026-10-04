@@ -13,6 +13,7 @@ import { mountHud } from './features/hud';
 import { mountPeople } from './features/people';
 import { mountInteriors } from './features/interiors';
 import { mountGallery } from './features/gallery';
+import { mountRealistic } from './features/realistic';
 
 async function waitFonts() {
   try {
@@ -103,6 +104,7 @@ async function boot() {
     },
   });
   mountHud(app, shell);
+  const realism = mountRealistic(app, shell);
   void people;
 
   if (!app.isMobile && window.innerWidth > 760) {
@@ -119,7 +121,7 @@ async function boot() {
   loading.style.opacity = '0';
   setTimeout(() => loading.remove(), 600);
   (window as unknown as Record<string, unknown>).app = app;
-  (window as unknown as Record<string, unknown>).ui = { shell, sel, walk, tour, security, people, interiors, exportGLB: () => exportGLBBuffer(app) };
+  (window as unknown as Record<string, unknown>).ui = { shell, sel, walk, tour, security, people, interiors, realism, exportGLB: () => exportGLBBuffer(app) };
 }
 
 boot();

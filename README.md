@@ -16,6 +16,7 @@ Konsepsiya asosida qurilgan interaktiv 3D kampus maketi (B layout). Brauzerda is
 | **Interyer** | Grand Academy Hall (20 m atrium, girih panjara orqali tushadigan quyosh naqshi, Knowledge Stair, digital wall). MPC Simulation Room (oval stol, vizualizatsiya devori, pul-kredit siyosati o‘quv modeli: 6 xil shok, 12 chorak prognozi) |
 | **Raqamlar** | Model maydonlari konsepsiyaning 24-bo‘lim maqsadlari bilan taqqoslanadi; konsepsiyaga kiritilgan 7 ta o‘zgartirishning har biri maketda ko‘rsatiladi |
 | **Renderlar** | Blender (Cycles) da olingan 6 ta fotorealistik kadr galereyasi |
+| **Realistik rejim** | Maketning o‘zi real vaqtda: fotoskaner teksturalar, barg daraxtlar, ambient occlusion, yumshoq soyalar. HUD’dagi «Realistik» tugmasi bilan almashadi |
 
 ## Fotorealistik renderlar (Blender)
 
@@ -29,6 +30,18 @@ Maketning o‘zi Blender 5.2 (Cycles) da render qilingan. Tafsilotlar va qayta r
 | Academy Courtyard — chorbog‘ | Sharqiy ravoq — soyali promenada |
 | ![Scholars’ Garden](render/out/garden.jpg) | ![Grand Hall oqshom](render/out/dusk.jpg) |
 | Research Institute va Scholars’ Garden | Grand Academy Hall — oqshom |
+
+## Realistik rejim
+
+Kompyuterda sayt avtomatik shu rejimda ochiladi (telefonda — oddiy maket). O‘ng pastdagi **Realistik** tugmasi bilan maketga qaytish mumkin, tanlov brauzerda eslab qolinadi. Havolaga `?real=1` yoki `?real=0` qo‘shib majburan tanlash ham mumkin.
+
+- **Materiallar.** Tosh, yo‘lak plitalari, asfalt, maysa, tom, yog‘och va daraxt po‘stlog‘i — [Poly Haven](https://polyhaven.com) fotoskaner teksturalari (CC0): rang, normal, AO va g‘adir-budurlik xaritalari. Ranglar maket palitrasiga moslangan, maysada takrorlanish sezilmasligi uchun ikki masshtabli aralashtirish bor.
+- **Daraxtlar.** Har bir toj ~230 ta barg to‘dasi kartochkasidan yig‘iladi, ichida shoxlar bor. Barg spraytı Blender’da render qilingan (`render/blender/leaf_sprite.py`). Soyalari ham barg shaklida tushadi.
+- **Yorug‘lik.** AgX rang boshqaruvi va kontrast, N8AO ambient occlusion, kechasi yorug‘lik yoyilishi (bloom), SMAA. Soya kamerasi ko‘rinayotgan joyga yaqinlashadi, shuning uchun yaqin kadrlarda soyalar tiniq.
+- **Unumdorlik.** Kadr tezligi 30 dan tushsa, sifat o‘zi pog‘onama-pog‘ona pasayadi: piksel zichligi, AO aniqligi, keyin SMAA va soya yumshoqligi. Diskret videokartali kompyuterda brauzer o‘sha kartani ishlatayotganini tekshiring (`chrome://gpu`).
+- **Teksturalar** `public/tex/` papkasida (~1,6 MB). Sayt shu papkasiz ham ochiladi, faqat realistik rejim protsedural maket teksturalarida qoladi. Qayta yuklash: `python3 scripts/fetch_textures.py`.
+
+GLB eksport har doim oddiy maket holatidan olinadi, shuning uchun Blender skripti o‘zgarishsiz ishlayveradi.
 
 ## Konsepsiyaga kiritilgan o‘zgartirishlar (B layout)
 
@@ -60,7 +73,8 @@ npm run typecheck
 Qo‘shimcha skriptlar:
 
 ```bash
-npm run build:artifact   # artifact/akademiya-3d.html — bitta fayldagi sahifa (claude.ai artifact uchun)
+npm run build:artifact   # artifact/akademiya-3d.html — bitta fayldagi sahifa (claude.ai artifact uchun; tex/ alohida fayllar)
+npm run textures         # public/tex/ — Poly Haven teksturalarini qayta yuklash (Python + Pillow)
 npx vite preview --port 4173 &
 npm run export:glb       # exports/akademiya-kampus.glb
 node scripts/screenshots.mjs http://localhost:5173/ shots   # headless skrinshotlar
@@ -81,15 +95,16 @@ Koordinatalar: uchastka markazi (0, 0), `x` sharqqa, `z` janubga (Ceremonial Ent
 ```
 src/
   data/campus.ts        konsepsiya ma’lumotlari (binolar, zonalar, maqsad maydonlar)
-  core/                 quyosh algoritmi, materiallar, muhit, soya to‘siqlari
+  core/                 quyosh algoritmi, materiallar, muhit, soya to‘siqlari, realistik rejim (realism.ts)
   scene/                binolar generatori, ravoqlar, landshaft
   sim/                  soya tahlili, navigatsiya grafi, odamlar simulyatsiyasi
   interiors/            Grand Hall, MPC xonasi, pul-kredit siyosati modeli
   features/             UI bo‘limlari (ko‘rinish, quyosh, xavfsizlik, odamlar, interyer, raqamlar)
   ui/                   interfeys qobig‘i va yordamchilar
-scripts/                artifact build, GLB eksport, skrinshotlar
+public/tex/             realistik rejim teksturalari va barg spraytı (CREDITS.md — manbalar)
+scripts/                artifact build, GLB eksport, skrinshotlar, teksturalarni yuklash
 exports/                tayyor GLB model
-render/blender/         Blender render skripti (GLB → fotorealistik kadrlar)
+render/blender/         Blender skriptlari: GLB → fotorealistik kadrlar, barg spraytı
 render/out/             tayyor renderlar
 ```
 

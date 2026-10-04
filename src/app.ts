@@ -45,6 +45,11 @@ export class App {
   doy = 172;
   hours = 11.5;
   timeListeners: (() => void)[] = [];
+  resizeListeners: ((w: number, h: number) => void)[] = [];
+  /** Asosiy sahnani o‘zi chizadigan bosqich (masalan, post-processing). true qaytarsa, oddiy render o‘tkaziladi. */
+  renderHook: ((dt: number) => boolean) | null = null;
+  /** GLB eksportidan oldin chaqiriladi; qaytgan funksiya eksportdan keyin holatni tiklaydi. */
+  exportHooks: (() => () => void)[] = [];
   private listeners: Listener[] = [];
   private timer = new THREE.Timer();
   private flight: {
@@ -137,6 +142,7 @@ export class App {
       cam.aspect = w / h;
       cam.updateProjectionMatrix();
     }
+    this.resizeListeners.forEach((f) => f(w, h));
   }
 
   setTime(doy: number, hours: number) {
@@ -168,6 +174,11 @@ export class App {
     this.flight = null;
   }
 
+  /** Bitta kadr: asosiy sahnada renderHook (post-processing) bo‘lsa, o‘sha orqali. */
+  renderFrame(dt = 0) {
+    if (!(this.activeScene === this.scene && this.renderHook?.(dt))) this.renderer.render(this.activeScene, this.activeCamera);
+  }
+
   start() {
     const loop = () => {
       requestAnimationFrame(loop);
@@ -190,7 +201,7 @@ export class App {
       const wn = getMaterials().waterNormal;
       wn.offset.x = t * 0.004;
       wn.offset.y = t * 0.0025;
-      this.renderer.render(this.activeScene, this.activeCamera);
+      this.renderFrame(dt);
       if (this.activeScene === this.scene) this.labelRenderer.render(this.scene, this.camera);
     };
     loop();

@@ -3,7 +3,7 @@
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
 
-const url = process.argv[2] || 'http://localhost:4173/';
+const url = process.argv[2] || 'http://localhost:4173/?real=0';
 const browser = await chromium.launch({
   executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium',
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],

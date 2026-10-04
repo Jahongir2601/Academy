@@ -105,7 +105,7 @@ export function mountViews(app: App, shell: Shell, sel: Selection, walk: Walk) {
 }
 
 async function screenshot(app: App) {
-  app.renderer.render(app.activeScene, app.activeCamera);
+  app.renderFrame();
   const blob = await new Promise<Blob | null>((r) => app.renderer.domElement.toBlob(r, 'image/png'));
   if (!blob) return;
   const res = await saveFile(`akademiya-maket-${Date.now()}.png`, blob);
@@ -114,8 +114,14 @@ async function screenshot(app: App) {
 
 /** GLB baytlari (eksport skripti ham shu funksiyadan foydalanadi). */
 export async function exportGLBBuffer(app: App): Promise<ArrayBuffer> {
-  const exporter = new GLTFExporter();
-  return (await exporter.parseAsync(app.campus, { binary: true, onlyVisible: true, maxTextureSize: 1024 })) as ArrayBuffer;
+  // eksport doim maket holatidan (Blender skripti material va toj geometriyasini nomi bo‘yicha taniydi)
+  const restore = app.exportHooks.map((f) => f());
+  try {
+    const exporter = new GLTFExporter();
+    return (await exporter.parseAsync(app.campus, { binary: true, onlyVisible: true, maxTextureSize: 1024 })) as ArrayBuffer;
+  } finally {
+    restore.forEach((f) => f());
+  }
 }
 
 async function exportGLB(app: App, btn: HTMLButtonElement) {

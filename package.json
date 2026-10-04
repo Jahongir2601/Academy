@@ -11,9 +11,12 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "export:glb": "node scripts/export-glb.mjs",
-    "shots": "node scripts/screenshots.mjs"
+    "shots": "node scripts/screenshots.mjs",
+    "textures": "python3 scripts/fetch_textures.py"
   },
   "dependencies": {
+    "n8ao": "^2.0.1",
+    "postprocessing": "^6.39.5",
     "three": "^0.186.1"
   },
   "devDependencies": {

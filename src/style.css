@@ -420,6 +420,24 @@ td.num, th.num { text-align: right; font-family: var(--mono); font-variant-numer
 }
 .hud .time { font-family: var(--mono); font-size: var(--fs-s); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .hud .time small { color: var(--ink-3); margin-left: 6px; }
+.mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-2);
+  font: 500 var(--fs-s) / 1 var(--body);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mode-toggle:hover { color: var(--ink); background: var(--surface-sunk); }
+.mode-toggle .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); transition: background .2s; }
+.mode-toggle[aria-pressed="true"] { color: var(--ink); border-color: var(--bronze); }
+.mode-toggle[aria-pressed="true"] .dot { background: var(--bronze); box-shadow: 0 0 0 3px color-mix(in srgb, var(--bronze) 25%, transparent); }
 .icon-btn {
   width: 34px;
   height: 34px;
