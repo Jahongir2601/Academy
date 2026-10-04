@@ -43,10 +43,24 @@ Parametrlar:
 | `--samples` | Cycles sample soni (denoise bilan 64–160 yetarli) | 160 |
 | `--res` | o‘lcham, masalan `3840x2160` | `1920x1080` |
 | `--format` | `PNG` yoki `JPEG` | `PNG` |
+| `--device` | `CPU` yoki `GPU` (OptiX/CUDA, HIP, Metal, oneAPI avtomatik tanlanadi; topilmasa CPU) | `CPU` |
 | `--leaf-density`, `--grass-density` | barg va o‘t zichligi | 34, 26 |
 | `--save-blend` | sahnani `.blend` sifatida saqlash (keyin qo‘lda tahrirlash uchun) | — |
 
-4 yadroli CPU’da 1920×1080, 96 sample bitta kadrga taxminan 10–15 daqiqa ketadi. GPU (CUDA/OptiX) bo‘lsa, Blender’da Cycles qurilmasini GPU’ga almashtirish kifoya.
+4 yadroli CPU’da 1920×1080, 96 sample bitta kadrga taxminan 10–15 daqiqa ketadi. Videokarta bo‘lsa, `--device GPU` qo‘shing — bir necha barobar tezroq.
+
+### GPU’li kompyuterda (Windows misolida)
+
+```bat
+git clone https://github.com/Jahongir2601/Academy.git
+cd Academy
+"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b --python render/blender/render_campus.py -- ^
+  --views all --samples 160 --res 3840x2160 --format JPEG --device GPU
+```
+
+Log’da `GPU (OPTIX): ...` qatori chiqsa, GPU ishlayapti. Videokarta xotirasi (VRAM) yetmasa, `--leaf-density 30 --grass-density 15` bilan zichlikni kamaytiring yoki `--res 1920x1080` qiling.
+
+Sahnani erkin ko‘rish uchun `--views courtyard --samples 1 --res 640x360 --save-blend kampus.blend` bilan saqlang. Keyin `kampus.blend`’ni Blender’da oching, Preferences → System’da GPU’ni tanlang, viewport’ni **Rendered** rejimga (`Z` → Rendered) o‘tkazing. GPU bilan sahna bo‘ylab fotorealistik ko‘rinishda deyarli real vaqtda aylanish mumkin.
 
 Yangi ko‘rinish qo‘shish uchun skriptdagi `VIEWS` lug‘atiga kamera nuqtasi (`pos`), nishon (`target`), obyektiv (`lens`), sana (`doy`) va soatni (`hour`) yozing. Koordinatalar web-maketdagidek beriladi: x sharqqa, y yuqoriga, z janubga.
 

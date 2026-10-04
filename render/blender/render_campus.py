@@ -35,6 +35,7 @@ ap.add_argument('--leaf-density', type=float, default=52.0)
 ap.add_argument('--threads', type=int, default=0)
 ap.add_argument('--save-blend', default='')
 ap.add_argument('--format', default='PNG', choices=['PNG', 'JPEG'])
+ap.add_argument('--device', default='CPU', choices=['CPU', 'GPU'])
 ARGS = ap.parse_args(argv)
 
 T0 = time.time()
@@ -1310,7 +1311,28 @@ for o in imported:
 rs = scene.render
 rs.engine = 'CYCLES'
 cy = scene.cycles
-cy.device = 'CPU'
+
+
+def enable_gpu():
+    """Cycles uchun GPU: OptiX/CUDA (NVIDIA), HIP (AMD), Metal (Apple), oneAPI (Intel Arc)."""
+    prefs = bpy.context.preferences.addons['cycles'].preferences
+    for backend in ('OPTIX', 'CUDA', 'HIP', 'METAL', 'ONEAPI'):
+        try:
+            prefs.compute_device_type = backend
+        except TypeError:
+            continue  # bu tizimda mavjud emas
+        prefs.refresh_devices()
+        gpus = [d for d in prefs.devices if d.type == backend]
+        if gpus:
+            for d in prefs.devices:
+                d.use = d.type == backend
+            log(f'GPU ({backend}): ' + ', '.join(d.name for d in gpus))
+            return True
+    log('GPU topilmadi — CPU’da render qilinadi')
+    return False
+
+
+cy.device = 'GPU' if ARGS.device == 'GPU' and enable_gpu() else 'CPU'
 cy.samples = ARGS.samples
 cy.use_adaptive_sampling = True
 cy.adaptive_threshold = 0.02
