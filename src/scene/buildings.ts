@@ -445,6 +445,11 @@ function makeBuilding(def: BuildingDef, I: Instancer, extras: THREE.Group): Buil
         rect: aud, height: 19.5, floors: 1, floorH: 17.3, bay: 4, finW: 1.4, inset: 0.8, noBands: true,
         sides: { s: false, w: false, e: false }, solid: all,
       });
+      // foye tomlaridan (12,2 m) yuqorida auditoriya devorlari ochiq qolmasin — tosh kamar
+      addBlock(B, {
+        rect: aud, y0: 11.0, height: 8.5, floors: 1, floorH: 7.5, bay: 4, finW: 1.4, inset: 0.8, noBands: true,
+        plinth: 0, roof: false, sides: { n: false }, solid: all,
+      });
       occ(aud, 0, 19.5);
       // sahna minorasi
       const fly: Rect = [66, 92, z0, 56];

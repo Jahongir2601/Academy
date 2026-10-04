@@ -334,10 +334,10 @@ export function buildLandscape(I: Instancer): LandscapeResult {
       I.add('bench', x, 0, q[2] - 1.4);
       I.add('bench', x, 0, q[3] + 1.4);
     }
-    I.add('bollard', q[0] - 1, 0, q[2] - 1);
-    I.add('bollard', q[1] + 1, 0, q[2] - 1);
-    I.add('bollard', q[0] - 1, 0, q[3] + 1);
-    I.add('bollard', q[1] + 1, 0, q[3] + 1);
+    for (const [bx, bz] of [[q[0] - 1, q[2] - 1], [q[1] + 1, q[2] - 1], [q[0] - 1, q[3] + 1], [q[1] + 1, q[3] + 1]]) {
+      if (Math.abs(bx) < 7.8 && bz > -8.8 && bz < 5.8) continue; // markaziy hovuz chetida — joy yo‘q
+      I.add('bollard', bx, 0, bz);
+    }
   }
 
   // ---------- Academic va Research ichki hovlilari ----------
@@ -379,14 +379,15 @@ export function buildLandscape(I: Instancer): LandscapeResult {
     const g = new THREE.PlaneGeometry(len + 0.3, 1.4);
     g.rotateX(-Math.PI / 2);
     g.rotateY(-ang);
-    g.translate((ax + bx) / 2, 0.12, (az + bz) / 2);
+    const dy = (i % 2) * 0.003; // qo‘shni bo‘laklar 0,3 m ustma-ust — bir tekislikda qolmasin
+    g.translate((ax + bx) / 2, 0.12 + dy, (az + bz) / 2);
     const wm = new THREE.Mesh(g, m.water);
     applyWorldUV(wm.geometry, UV1);
     water.push(wm);
     group.add(wm);
     const rim = new THREE.BoxGeometry(len + 0.3, 0.3, 2.2);
     rim.rotateY(-ang);
-    rim.translate((ax + bx) / 2, -0.06, (az + bz) / 2);
+    rim.translate((ax + bx) / 2, -0.06 + dy, (az + bz) / 2);
     B.add('stoneWarm', rim, UV1);
   }
   // aylana yo‘lak

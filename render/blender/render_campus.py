@@ -376,14 +376,25 @@ def mat_wood():
     link(nt, tc.outputs['Object'], w.inputs['Vector'])
     slat = ramp(nt, w.outputs['Fac'], [(0.0, (1, 1, 1, 1)), (0.86, (1, 1, 1, 1)), (0.9, (0.15, 0.15, 0.15, 1))], (-450, 200))
     slat.color_ramp.interpolation = 'CONSTANT'
+    # reykalar X bo‘ylab almashadi; normali X ga qaragan yuzada (ustun yonlari) X o‘zgarmaydi va
+    # chiziq o‘rniga tasodifiy qora dog‘lar chiqadi — u yerda reyka chizig‘ini o‘chiramiz
+    sep = node(nt, 'ShaderNodeSeparateXYZ', (-700, 420))
+    link(nt, tc.outputs['Normal'], sep.inputs[0])
+    nx = node(nt, 'ShaderNodeMath', (-550, 420), operation='ABSOLUTE')
+    link(nt, sep.outputs['X'], nx.inputs[0])
+    side = node(nt, 'ShaderNodeMath', (-400, 420), operation='GREATER_THAN')
+    link(nt, nx.outputs[0], side.inputs[0])
+    side.inputs[1].default_value = 0.5
+    slat_c = mix_rgb(nt, slat.outputs[0], (1, 1, 1, 1), 0.0, 'MIX', (-250, 300))
+    link(nt, side.outputs[0], {x.identifier: x for x in slat_c.node.inputs}['Factor_Float'])
     gmp = node(nt, 'ShaderNodeMapping', (-800, -150))
     gmp.inputs['Scale'].default_value = (40, 1.5, 40)   # tola reyka bo‘ylab (Y) cho‘zilgan
     link(nt, tc.outputs['Object'], gmp.inputs[0])
     gn = noise(nt, (-600, -150), scale=1.0, detail=4, coord=gmp.outputs[0])
     col = ramp(nt, gn.outputs['Fac'], [(0.3, rgba('#6b4a30')), (0.7, rgba('#8f6643'))], (-350, -150))
-    base = mix_rgb(nt, col.outputs[0], slat.outputs[0], 1.0, 'MULTIPLY', (-100, 100))
+    base = mix_rgb(nt, col.outputs[0], slat_c, 1.0, 'MULTIPLY', (-100, 100))
     link(nt, base, b.inputs['Base Color'])
-    bp = bump(nt, slat.outputs[0], 0.3, (0, -250))
+    bp = bump(nt, slat_c, 0.3, (0, -250))
     link(nt, bp.outputs[0], b.inputs['Normal'])
     return m
 
@@ -424,6 +435,7 @@ def mat_asphalt():
 def mat_grass_ground():
     m, nt, out = new_mat('grass_pbr')
     b = principled(nt, out, Roughness=0.95)
+    b.inputs['Specular IOR Level'].default_value = 0.15
     tc = node(nt, 'ShaderNodeTexCoord', (-1000, 0))
     n = noise(nt, (-700, 200), scale=0.08, detail=8, coord=tc.outputs['Object'])
     n2 = noise(nt, (-700, -100), scale=40, detail=6, rough=0.8, coord=tc.outputs['Object'])
@@ -489,6 +501,7 @@ def mat_grass_blade():
     col = ramp(nt, attr.outputs['Fac'], [(0.0, rgba('#3b521f')), (0.6, rgba('#5a742f')), (1.0, rgba('#8a8e48'))], (-600, 150))
     b = node(nt, 'ShaderNodeBsdfPrincipled', (-150, 150))
     b.inputs['Roughness'].default_value = 0.6
+    b.inputs['Specular IOR Level'].default_value = 0.2
     link(nt, col.outputs[0], b.inputs['Base Color'])
     tr = node(nt, 'ShaderNodeBsdfTranslucent', (-150, -150))
     link(nt, col.outputs[0], tr.inputs['Color'])
@@ -638,7 +651,7 @@ REPLACE = {
     'glass': mat_glass_windows(),
     'glassPlain': mat_glass_plain(),
     'bronze': mat_metal('bronze_pbr', '#5a4027', 0.4),
-    'darkMetal': mat_metal('darkMetal_pbr', '#2c2f33', 0.42),
+    'darkMetal': mat_metal('darkMetal_pbr', '#6e747b', 0.42),
     'wood': mat_wood(),
     'screen': mat_screen(),
     'inscription': mat_inscription(),
@@ -1262,7 +1275,7 @@ def add_spot(pos, tgt, power, ang, blend, soft):
 
 for k in range(8):  # buildings.ts: ustunlar cx = -21 + 6k, old yuzasi z≈97.6, podium y=1.2
     cx = -21 + 6 * k
-    add_spot((cx, 1.25, 98.3), (cx, 16.9, 97.7), 1000, 14, 0.4, 0.05)
+    add_spot((cx, 1.25, 97.85), (cx, 9.0, 97.35), 1200, 22, 0.4, 0.05)
 add_spot((76, 0.6, 118), (76, 6, 98), 2500, 42, 0.6, 0.25)  # Conference Centre
 ld = bpy.data.lights.new('YozuvGrazer', 'AREA')
 ld.shape = 'RECTANGLE'
@@ -1353,7 +1366,7 @@ def setup_view(name, v):
     warm = Vector((1.0, 0.97, 0.93)).lerp(Vector((1.0, 0.72, 0.48)), low * 0.8)
     sun_data.color = warm
     bgn.inputs['Strength'].default_value = 0.55 if not night else 2.0
-    em = 1.2 if night else 0.0
+    em = 0.6 if night else 0.0
     MATS['glass_emission'].inputs['Emission Strength'].default_value = em
     MATS['glassPlain_emission'].inputs['Emission Strength'].default_value = 0.18 if night else 0.0
     MATS['lamp_pbr_emission'].inputs['Emission Strength'].default_value = 25.0 if night else 0.0

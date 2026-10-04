@@ -1,7 +1,7 @@
 // Ravoqlar (yopiq galereyalar): o‘tkir uchli arkalar, tom plitasi va yog‘och shift.
 // Toshkent issig‘ida bloklarni soyali piyoda yo‘llari bilan bog‘laydi (5-taklif).
 import * as THREE from 'three';
-import { GeoBuilder } from '../core/geo';
+import { GeoBuilder, applyWorldUV } from '../core/geo';
 import { getMaterials } from '../core/materials';
 import { getOccluders } from './buildings';
 import { OCC_ARCADE } from '../core/occluders';
@@ -53,6 +53,8 @@ function archPanelGeometry(): THREE.BufferGeometry {
   s.closePath();
   const g = new THREE.ExtrudeGeometry(s, { depth: 0.6, bevelEnabled: false, curveSegments: 10 });
   g.translate(0, 0, -0.3);
+  // ExtrudeGeometry yon devorlariga UV’ni 90° burib beradi — tosh choklari burchakda uzilmasin
+  applyWorldUV(g, { su: 1, sv: 1 });
   return g;
 }
 
@@ -96,7 +98,6 @@ export function buildArcades(): THREE.Group {
   inst.castShadow = true;
   inst.receiveShadow = true;
   inst.name = 'arches';
-  // ExtrudeGeometry UV’lari shakl koordinatalarida (metrda) — tosh teksturasiga mos
   group.add(inst);
   group.name = 'arcades';
   return group;
