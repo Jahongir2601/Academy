@@ -129,8 +129,10 @@ export function addBlock(B: GeoBuilder, o: BlockOpts) {
       // parapet + karniz
       // sharq/g‘arb parapetlari 3 mm ichkarida va pastroq — burchakda shimol/janub parapeti bilan
       // bir tekislikda ustma-ust tushmasligi uchun
+      // (burchakdagi uzaytma faqat shimol/janub parapetida)
       const ew = sg.along === 'z' ? 0.003 : 0;
-      sideBox(B, frame, sg, ia - (atStart ? 0.15 : 0), ib + (atEnd ? 0.15 : 0), -0.15 + ew, Math.max(0.5, ins * 0.7), gy1 - 0.15 + ew, top - ew);
+      const ext = sg.along === 'x' ? 0.15 : 0;
+      sideBox(B, frame, sg, ia - (atStart ? ext : 0), ib + (atEnd ? ext : 0), -0.15 + ew, Math.max(0.5, ins * 0.7), gy1 - 0.15 + ew, top - ew);
 
       const n = Math.max(1, Math.round(len / o.bay));
       const step = len / n;
