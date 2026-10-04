@@ -15,6 +15,20 @@ Konsepsiya asosida qurilgan interaktiv 3D kampus maketi (B layout). Brauzerda is
 | **Odamlar** | Ikki ssenariy: «Oddiy o‘quv kuni» (~550 kishi) va «Xalqaro konferensiya kuni» (~930 kishi). Har bir odam o‘z jadvali bo‘yicha va faqat ruxsat etilgan ring yo‘llaridan yuradi. Ko‘rsatkichlar: soyada yurish ulushi, o‘rtacha yurish masofasi, ring buzilishlari, binolar bandligi |
 | **Interyer** | Grand Academy Hall (20 m atrium, girih panjara orqali tushadigan quyosh naqshi, Knowledge Stair, digital wall). MPC Simulation Room (oval stol, vizualizatsiya devori, pul-kredit siyosati o‘quv modeli: 6 xil shok, 12 chorak prognozi) |
 | **Raqamlar** | Model maydonlari konsepsiyaning 24-bo‘lim maqsadlari bilan taqqoslanadi; konsepsiyaga kiritilgan 7 ta o‘zgartirishning har biri maketda ko‘rsatiladi |
+| **Renderlar** | Blender (Cycles) da olingan 6 ta fotorealistik kadr galereyasi |
+
+## Fotorealistik renderlar (Blender)
+
+Maketning o‘zi Blender 5.2 (Cycles) da render qilingan. Tafsilotlar va qayta render qilish yo‘riqnomasi: [`render/README.md`](render/README.md).
+
+| | |
+|---|---|
+| ![Kampus umumiy ko‘rinishi](render/out/aerial.jpg) | ![Ceremonial Entrance](render/out/entrance.jpg) |
+| Kampus umumiy ko‘rinishi | Ceremonial Entrance va Grand Academy Hall |
+| ![Chorbog‘ hovlisi](render/out/courtyard.jpg) | ![Sharqiy ravoq](render/out/arcade.jpg) |
+| Academy Courtyard — chorbog‘ | Sharqiy ravoq — soyali promenada |
+| ![Scholars’ Garden](render/out/garden.jpg) | ![Grand Hall oqshom](render/out/dusk.jpg) |
+| Research Institute va Scholars’ Garden | Grand Academy Hall — oqshom |
 
 ## Konsepsiyaga kiritilgan o‘zgartirishlar (B layout)
 
@@ -75,6 +89,8 @@ src/
   ui/                   interfeys qobig‘i va yordamchilar
 scripts/                artifact build, GLB eksport, skrinshotlar
 exports/                tayyor GLB model
+render/blender/         Blender render skripti (GLB → fotorealistik kadrlar)
+render/out/             tayyor renderlar
 ```
 
 ## Cheklovlar

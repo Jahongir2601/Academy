@@ -12,6 +12,7 @@ import { mountNumbers } from './features/numbers';
 import { mountHud } from './features/hud';
 import { mountPeople } from './features/people';
 import { mountInteriors } from './features/interiors';
+import { mountGallery } from './features/gallery';
 
 async function waitFonts() {
   try {
@@ -57,6 +58,7 @@ async function boot() {
   const people = mountPeople(app, shell, sel);
   const interiors = mountInteriors(app, shell, sel, walk);
   sel.onEnterInterior = (k) => interiors.enter(k);
+  mountGallery(shell);
 
   const view = (id: string) => {
     const v = VIEWS.find((x) => x.id === id)!;

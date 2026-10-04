@@ -72,17 +72,17 @@ def sun_position(doy, hours):
 # ---------------------------------------------------------------- ko‘rinishlar
 # pos/target three.js koordinatalarida; doy — yil kuni; hour — mahalliy vaqt (UTC+5)
 VIEWS = {
-    'aerial': dict(pos=(255, 185, 300), target=(-5, 0, -12), lens=44, doy=266, hour=17.2, grass=False,
+    'aerial': dict(pos=(-165, 240, 330), target=(14, 0, -30), lens=36, doy=266, hour=17.0, grass=False,
                    title='Kampus umumiy ko‘rinishi — kuzgi kech'),
-    'entrance': dict(pos=(-3.5, 1.7, 151.0), target=(0, 9.0, 96), lens=24, doy=266, hour=13.4, grass=True,
+    'entrance': dict(pos=(22, 1.65, 140), target=(0, 1.65, 98), lens=22, shift=0.12, doy=266, hour=15.75, grass=True,
                      title='Ceremonial Entrance va Grand Academy Hall'),
-    'courtyard': dict(pos=(-6.1, 1.6, 24.0), target=(0.5, 4.2, -22), lens=21, doy=172, hour=10.6, grass=True,
-                      title='Academy Courtyard — chorbog‘'),
-    'arcade': dict(pos=(76.3, 1.65, -13.5), target=(76.6, 2.7, -70), lens=24, doy=172, hour=9.3, grass=True,
+    'courtyard': dict(pos=(0, 8.4, 25.3), target=(0, 1.0, -24), lens=24, doy=266, hour=9.3, grass=True,
+                      title='Academy Courtyard — chorbog‘, Knowledge Centre terrasasidan'),
+    'arcade': dict(pos=(76.6, 1.6, -24), target=(77.0, 1.6, -60), lens=24, shift=0.06, doy=266, hour=10.3, grass=True,
                    title='Sharqiy ravoq — soyali promenada'),
-    'dusk': dict(pos=(-7, 2.0, 150.5), target=(0, 9.5, 97), lens=28, doy=172, hour=20.72, grass=False, night=True,
+    'dusk': dict(pos=(-24, 1.3, 148), target=(16, 1.3, 98), lens=24, shift=0.15, doy=172, hour=20.72, grass=False, night=True,
                  title='Grand Academy Hall — oqshom'),
-    'garden': dict(pos=(-28, 30, -186), target=(-68, 0, -114), lens=32, doy=172, hour=8.6, grass=True,
+    'garden': dict(pos=(-120, 14, -147), target=(-60, 2, -110), lens=28, doy=172, hour=17.5, grass=True,
                    title='Research Institute va Scholars’ Garden'),
 }
 
@@ -93,6 +93,48 @@ log('GLB import')
 bpy.ops.import_scene.gltf(filepath=os.path.abspath(ARGS.glb))
 imported = [o for o in scene.objects if o.type == 'MESH']
 log(f'{len(imported)} ta mesh obyekt')
+
+# bir mesh ichida ustma-ust tushgan yassi orollar (yo‘l kesishmalari) Cycles’da qora chiqadi — har biriga 2 mm qavat
+GROUND = {'paving', 'pavingWarm', 'asphalt', 'court', 'courtLine'}
+n_up = 0
+for o in imported:
+    if o.data.users > 1 or not any(s.material and s.material.name.split('.')[0] in GROUND for s in o.material_slots):
+        continue
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
+    bm.faces.ensure_lookup_table()
+    seen, isls = set(), []
+    for f in bm.faces:
+        if f.index in seen or f.normal.z < 0.99:
+            continue
+        st, isl = [f], set()
+        while st:
+            g = st.pop()
+            if g.index in seen:
+                continue
+            seen.add(g.index)
+            isl.add(g)
+            st += [h for e in g.edges for h in e.link_faces if h.normal.z > 0.99 and h.index not in seen]
+        vs = {v for g in isl for v in g.verts}
+        isls.append((sum(g.calc_area() for g in isl), vs, min(v.co.x for v in vs), min(v.co.y for v in vs),
+                     max(v.co.x for v in vs), max(v.co.y for v in vs), round(sum(v.co.z for v in vs) / len(vs), 4)))
+    isls.sort(key=lambda r: -r[0])  # katta maydonlar pastda, kichik kesishmalar ustida
+    lev = []
+    for i, a in enumerate(isls):
+        used = {lev[j] for j, b in enumerate(isls[:i]) if abs(a[6] - b[6]) < 1e-4
+                and a[2] < b[4] - 1e-3 and b[2] < a[4] - 1e-3 and a[3] < b[5] - 1e-3 and b[3] < a[5] - 1e-3}
+        k = 0
+        while k in used:
+            k += 1
+        lev.append(k)
+        if k:
+            n_up += 1
+            for v in a[1]:
+                v.co.z += 0.002 * k
+    bm.to_mesh(o.data)
+    bm.free()
+log(f'ustma-ust yer orollari ko‘tarildi: {n_up}')
 
 
 # ---------------------------------------------------------------- material yordamchilari
@@ -146,6 +188,15 @@ def image_of(mat_name):
                 else:
                     img = n.image
     return img, emis
+
+
+def uv_scale_of(name):
+    """GLB KHR_texture_transform importda Mapping node’ga yoziladi — o‘sha masshtabni qaytaramiz."""
+    m = bpy.data.materials.get(name)
+    for n in (m.node_tree.nodes if m and m.use_nodes else []):
+        if n.type == 'MAPPING':
+            return tuple(n.inputs['Scale'].default_value)
+    return (1.0, 1.0, 1.0)
 
 
 def uv_tex(nt, img, loc, scale=(1, 1, 1), noncolor=False):
@@ -234,19 +285,29 @@ def mat_stone(name, tint, rough=0.78):
     n1 = noise(nt, (-700, 200), scale=0.9, detail=8, rough=0.65, coord=tc.outputs['Object'])
     n2 = noise(nt, (-700, -100), scale=28, detail=4, rough=0.7, coord=tc.outputs['Object'])
     col = ramp(nt, n1.outputs['Fac'], [(0.3, tuple(c * 0.86 for c in tint[:3]) + (1,)), (0.7, tint)], (-450, 200))
+    base = col.outputs[0]
     if img:
-        t = uv_tex(nt, img, (-450, 450))
-        mixed = mix_rgb(nt, col.outputs[0], t.outputs['Color'], 0.6, 'MULTIPLY', (-150, 300))
-        # tekstura asosan och — rangni yorqinroq saqlash uchun qisman asl rang bilan aralashtiramiz
-        bright = mix_rgb(nt, mixed, col.outputs[0], 0.45, 'MIX', (50, 300))
-        link(nt, bright, b.inputs['Base Color'])
+        t = uv_tex(nt, img, (-450, 450), scale=uv_scale_of(name))
+        # tekstura yuzasi ~0.72 (chiziqli): normallaymiz — plita yuzasi = tint, choklar ~0.75·tint
+        tn = node(nt, 'ShaderNodeVectorMath', (-250, 450), operation='SCALE', in_Scale=1.38)
+        link(nt, t.outputs['Color'], tn.inputs[0])
+        base = mix_rgb(nt, col.outputs[0], tn.outputs['Vector'], 1.0, 'MULTIPLY', (-150, 300))
         h = node(nt, 'ShaderNodeMath', (-150, -250), operation='ADD')
         link(nt, t.outputs['Color'], h.inputs[0])
         link(nt, n2.outputs['Fac'], h.inputs[1])
-        bp = bump(nt, h.outputs[0], 0.25, (100, -250))
+        bp = bump(nt, h.outputs[0], 0.35, (100, -250))
+        bv = node(nt, 'ShaderNodeBevel', (-100, -450), samples=4)
+        bv.inputs['Radius'].default_value = 0.012
+        link(nt, bv.outputs['Normal'], bp.inputs['Normal'])
     else:
-        link(nt, col.outputs[0], b.inputs['Base Color'])
         bp = bump(nt, n2.outputs['Fac'], 0.2, (100, -250))
+    # tag qismi (0–0.5 m) biroz to‘qroq — yer bilan kontakt / sachrash
+    geo = node(nt, 'ShaderNodeNewGeometry', (-1200, -450))
+    sz = node(nt, 'ShaderNodeSeparateXYZ', (-1000, -450))
+    link(nt, geo.outputs['Position'], sz.inputs[0])
+    gr = ramp(nt, sz.outputs['Z'], [(0.0, (0.82, 0.8, 0.77, 1)), (0.5, (1, 1, 1, 1))], (-800, -450))
+    base = mix_rgb(nt, base, gr.outputs[0], 1.0, 'MULTIPLY', (50, 300))
+    link(nt, base, b.inputs['Base Color'])
     link(nt, bp.outputs[0], b.inputs['Normal'])
     rr = ramp(nt, n2.outputs['Fac'], [(0.3, (rough - 0.08,) * 3 + (1,)), (0.7, (min(1, rough + 0.1),) * 3 + (1,))], (-150, -50))
     link(nt, rr.outputs[0], b.inputs['Roughness'])
@@ -269,7 +330,8 @@ def mat_glass_windows():
         link(nt, rr.outputs[0], b.inputs['Roughness'])
     if emis:
         te = uv_tex(nt, emis, (-500, -350))
-        link(nt, te.outputs['Color'], b.inputs['Emission Color'])
+        warm = mix_rgb(nt, te.outputs['Color'], rgba('#ffd2a0'), 1.0, 'MULTIPLY', (-200, -350))
+        link(nt, warm, b.inputs['Emission Color'])
     b.inputs['Emission Strength'].default_value = 0.0
     MATS['glass_emission'] = b
     return m
@@ -307,17 +369,21 @@ def mat_wood():
     m, nt, out = new_mat('wood_pbr')
     b = principled(nt, out, Roughness=0.55)
     tc = node(nt, 'ShaderNodeTexCoord', (-1000, 0))
-    mp = node(nt, 'ShaderNodeMapping', (-800, 0))
-    mp.inputs['Scale'].default_value = (1, 1, 12)
-    link(nt, tc.outputs['Object'], mp.inputs[0])
-    w = node(nt, 'ShaderNodeTexWave', (-600, 0))
-    w.inputs['Scale'].default_value = 3
-    w.inputs['Distortion'].default_value = 6
-    w.inputs['Detail'].default_value = 4
-    link(nt, mp.outputs[0], w.inputs['Vector'])
-    col = ramp(nt, w.outputs['Fac'], [(0.0, rgba('#6e4527')), (1.0, rgba('#a8744a'))], (-350, 0))
-    link(nt, col.outputs[0], b.inputs['Base Color'])
-    bp = bump(nt, w.outputs['Fac'], 0.08, (0, -250))
+    w = node(nt, 'ShaderNodeTexWave', (-700, 200), wave_profile='SAW', bands_direction='X')
+    w.inputs['Scale'].default_value = 2.0      # ~16 sm reykalar
+    w.inputs['Distortion'].default_value = 0.4
+    w.inputs['Detail'].default_value = 2
+    link(nt, tc.outputs['Object'], w.inputs['Vector'])
+    slat = ramp(nt, w.outputs['Fac'], [(0.0, (1, 1, 1, 1)), (0.86, (1, 1, 1, 1)), (0.9, (0.15, 0.15, 0.15, 1))], (-450, 200))
+    slat.color_ramp.interpolation = 'CONSTANT'
+    gmp = node(nt, 'ShaderNodeMapping', (-800, -150))
+    gmp.inputs['Scale'].default_value = (40, 1.5, 40)   # tola reyka bo‘ylab (Y) cho‘zilgan
+    link(nt, tc.outputs['Object'], gmp.inputs[0])
+    gn = noise(nt, (-600, -150), scale=1.0, detail=4, coord=gmp.outputs[0])
+    col = ramp(nt, gn.outputs['Fac'], [(0.3, rgba('#6b4a30')), (0.7, rgba('#8f6643'))], (-350, -150))
+    base = mix_rgb(nt, col.outputs[0], slat.outputs[0], 1.0, 'MULTIPLY', (-100, 100))
+    link(nt, base, b.inputs['Base Color'])
+    bp = bump(nt, slat.outputs[0], 0.3, (0, -250))
     link(nt, bp.outputs[0], b.inputs['Normal'])
     return m
 
@@ -330,7 +396,7 @@ def mat_paving(name, tint, scale):
     n = noise(nt, (-800, 200), scale=0.15, detail=6, coord=tc.outputs['Object'])
     col = ramp(nt, n.outputs['Fac'], [(0.35, tuple(c * 0.85 for c in tint[:3]) + (1,)), (0.65, tint)], (-500, 200))
     if img:
-        t = uv_tex(nt, img, (-500, 450))
+        t = uv_tex(nt, img, (-500, 450), scale=uv_scale_of(name))
         mixed = mix_rgb(nt, col.outputs[0], t.outputs['Color'], 0.9, 'MULTIPLY', (-150, 300))
         link(nt, mixed, b.inputs['Base Color'])
         bp = bump(nt, t.outputs['Color'], 0.35, (100, -250))
@@ -346,8 +412,8 @@ def mat_asphalt():
     tc = node(nt, 'ShaderNodeTexCoord', (-900, 0))
     n = noise(nt, (-600, 150), scale=60, detail=8, rough=0.8, coord=tc.outputs['Object'])
     n2 = noise(nt, (-600, -150), scale=0.25, detail=4, coord=tc.outputs['Object'])
-    col = ramp(nt, n.outputs['Fac'], [(0.3, rgba('#2e3133')), (0.7, rgba('#4a4d4f'))], (-300, 150))
-    mixed = mix_rgb(nt, col.outputs[0], n2.outputs['Color'], 0.4, 'MULTIPLY', (-50, 150))
+    col = ramp(nt, n.outputs['Fac'], [(0.3, rgba('#3b3c3c')), (0.7, rgba('#5a5957'))], (-300, 150))
+    mixed = mix_rgb(nt, col.outputs[0], n2.outputs['Fac'], 0.4, 'MULTIPLY', (-50, 150))
     link(nt, mixed, b.inputs['Base Color'])
     bp = bump(nt, n.outputs['Fac'], 0.3, (100, -250))
     link(nt, bp.outputs[0], b.inputs['Normal'])
@@ -361,7 +427,7 @@ def mat_grass_ground():
     n = noise(nt, (-700, 200), scale=0.08, detail=8, coord=tc.outputs['Object'])
     n2 = noise(nt, (-700, -100), scale=40, detail=6, rough=0.8, coord=tc.outputs['Object'])
     col = ramp(nt, n.outputs['Fac'], [(0.25, rgba('#4a5f2c')), (0.55, rgba('#62773a')), (0.8, rgba('#8a8a4e'))], (-400, 200))
-    mixed = mix_rgb(nt, col.outputs[0], n2.outputs['Color'], 0.35, 'MULTIPLY', (-100, 200))
+    mixed = mix_rgb(nt, col.outputs[0], n2.outputs['Fac'], 0.35, 'MULTIPLY', (-100, 200))
     link(nt, mixed, b.inputs['Base Color'])
     bp = bump(nt, n2.outputs['Fac'], 0.6, (100, -250))
     link(nt, bp.outputs[0], b.inputs['Normal'])
@@ -370,15 +436,23 @@ def mat_grass_ground():
 
 def mat_water(name, deep, shallow):
     m, nt, out = new_mat(name + '_pbr')
-    b = principled(nt, out, Roughness=0.015, IOR=1.33)
-    b.inputs['Base Color'].default_value = rgba(deep)
-    b.inputs['Specular IOR Level'].default_value = 0.9
+    b = principled(nt, out, Roughness=0.03, IOR=1.33)
+    b.inputs['Specular IOR Level'].default_value = 0.5
+    lw = node(nt, 'ShaderNodeLayerWeight', (-450, 250), in_Blend=0.35)
+    wc = mix_rgb(nt, rgba(shallow), rgba(deep), 0.5, 'MIX', (-200, 250))
+    link(nt, lw.outputs['Facing'], {s.identifier: s for s in wc.node.inputs}['Factor_Float'])
+    link(nt, wc, b.inputs['Base Color'])
     tc = node(nt, 'ShaderNodeTexCoord', (-900, 0))
     mp = node(nt, 'ShaderNodeMapping', (-700, 0))
     mp.inputs['Scale'].default_value = (1, 1.6, 1)
     link(nt, tc.outputs['Object'], mp.inputs[0])
-    n = noise(nt, (-450, 0), scale=1.4, detail=3, rough=0.5, coord=mp.outputs[0])
-    bp = bump(nt, n.outputs['Fac'], 0.08, (0, -200))
+    n1 = noise(nt, (-450, 0), scale=9, detail=2, rough=0.5, coord=mp.outputs[0])
+    n2 = noise(nt, (-450, -200), scale=35, detail=3, rough=0.5, coord=mp.outputs[0])
+    ad = node(nt, 'ShaderNodeMath', (-250, -100), operation='ADD')
+    link(nt, n1.outputs['Fac'], ad.inputs[0])
+    link(nt, n2.outputs['Fac'], ad.inputs[1])
+    bp = bump(nt, ad.outputs[0], 0.15, (0, -200))
+    bp.inputs['Distance'].default_value = 0.01
     link(nt, bp.outputs[0], b.inputs['Normal'])
     return m
 
@@ -386,15 +460,15 @@ def mat_water(name, deep, shallow):
 def mat_leaf():
     m, nt, out = new_mat('leaf_pbr')
     attr = node(nt, 'ShaderNodeAttribute', (-1000, 200), attribute_type='INSTANCER', attribute_name='leafrand')
-    orand = obj_random(nt, (-1000, -50))
+    orand = node(nt, 'ShaderNodeAttribute', (-1000, -50), attribute_type='INSTANCER', attribute_name='treerand').outputs['Fac']
     add = node(nt, 'ShaderNodeMath', (-800, 100), operation='MULTIPLY_ADD')
-    add.inputs[1].default_value = 0.55
+    add.inputs[1].default_value = 0.25
     link(nt, attr.outputs['Fac'], add.inputs[0])
     m2 = node(nt, 'ShaderNodeMath', (-800, -50), operation='MULTIPLY')
-    m2.inputs[1].default_value = 0.45
+    m2.inputs[1].default_value = 0.75
     link(nt, orand, m2.inputs[0])
     link(nt, m2.outputs[0], add.inputs[2])
-    col = ramp(nt, add.outputs[0], [(0.0, rgba('#263d16')), (0.45, rgba('#3f6321')), (0.75, rgba('#58792b')), (1.0, rgba('#7a8f3a'))], (-550, 100))
+    col = ramp(nt, add.outputs[0], [(0.0, rgba('#2c4519')), (0.5, rgba('#3f6321')), (1.0, rgba('#5a7a2c'))], (-550, 100))
     b = node(nt, 'ShaderNodeBsdfPrincipled', (-150, 150))
     b.inputs['Roughness'].default_value = 0.55
     link(nt, col.outputs[0], b.inputs['Base Color'])
@@ -427,16 +501,17 @@ def mat_grass_blade():
 
 def mat_solar():
     m, nt, out = new_mat('solar_pbr')
-    b = principled(nt, out, Roughness=0.12, Metallic=0.3)
-    b.inputs['Coat Weight'].default_value = 0.6
+    b = principled(nt, out, Roughness=0.2, Metallic=0.0)
+    b.inputs['Coat Weight'].default_value = 0.0
+    b.inputs['Specular IOR Level'].default_value = 0.35
     tc = node(nt, 'ShaderNodeTexCoord', (-900, 0))
     br = node(nt, 'ShaderNodeTexBrick', (-600, 0))
     br.inputs['Scale'].default_value = 6
-    br.inputs['Mortar Size'].default_value = 0.015
+    br.inputs['Mortar Size'].default_value = 0.02
     br.offset = 0.0
-    br.inputs['Color1'].default_value = rgba('#16213a')
-    br.inputs['Color2'].default_value = rgba('#1b2846')
-    br.inputs['Mortar'].default_value = rgba('#9aa3ad')
+    br.inputs['Color1'].default_value = rgba('#0a101c')
+    br.inputs['Color2'].default_value = rgba('#0d1524')
+    br.inputs['Mortar'].default_value = rgba('#4a525c')
     link(nt, tc.outputs['Object'], br.inputs['Vector'])
     link(nt, br.outputs['Color'], b.inputs['Base Color'])
     return m
@@ -519,8 +594,13 @@ def mat_screen():
     """Girih panjara: bronza metall, naqsh alfa orqali."""
     img = girih_image()
     m, nt, out = new_mat('screen_pbr')
-    b = principled(nt, out, Metallic=1.0, Roughness=0.32)
-    b.inputs['Base Color'].default_value = rgba('#9c7243')
+    b = principled(nt, out, Metallic=1.0, Roughness=0.45)
+    tcp = node(nt, 'ShaderNodeTexCoord', (-900, 250))
+    pn = noise(nt, (-700, 250), scale=3, detail=4, coord=tcp.outputs['Object'])
+    pc = ramp(nt, pn.outputs['Fac'], [(0.3, rgba('#5a3f26')), (0.7, rgba('#7a5634'))], (-450, 250))
+    link(nt, pc.outputs[0], b.inputs['Base Color'])
+    pr = ramp(nt, pn.outputs['Fac'], [(0.3, (0.38, 0.38, 0.38, 1)), (0.7, (0.55, 0.55, 0.55, 1))], (-450, 0))
+    link(nt, pr.outputs[0], b.inputs['Roughness'])
     if img:
         t = uv_tex(nt, img, (-500, -150))
         bw = node(nt, 'ShaderNodeRGBToBW', (-200, -150))
@@ -540,8 +620,8 @@ def mat_inscription():
             if n.type == 'TEX_IMAGE' and n.image:
                 img = n.image
     m, nt, out = new_mat('inscription_pbr')
-    b = principled(nt, out, Metallic=1.0, Roughness=0.28)
-    b.inputs['Base Color'].default_value = rgba('#b8894c')
+    b = principled(nt, out, Metallic=1.0, Roughness=0.4)
+    b.inputs['Base Color'].default_value = rgba('#7a5833')
     if img:
         t = uv_tex(nt, img, (-500, -150))
         link(nt, t.outputs['Alpha'], b.inputs['Alpha'])
@@ -550,13 +630,13 @@ def mat_inscription():
 
 log('materiallar')
 REPLACE = {
-    'stone': mat_stone('stone', rgba('#eee2c9')),
-    'stoneWarm': mat_stone('stoneWarm', rgba('#f2dcbb')),
-    'stoneDark': mat_stone('stoneDark', rgba('#c3b49b'), 0.82),
+    'stone': mat_stone('stone', rgba('#d9c9aa')),
+    'stoneWarm': mat_stone('stoneWarm', rgba('#dcc29c')),
+    'stoneDark': mat_stone('stoneDark', rgba('#ad9a7c'), 0.82),
     'roof': mat_stone('roof', rgba('#8d8b85'), 0.92),
     'glass': mat_glass_windows(),
     'glassPlain': mat_glass_plain(),
-    'bronze': mat_metal('bronze_pbr', '#8f6838', 0.32),
+    'bronze': mat_metal('bronze_pbr', '#5a4027', 0.4),
     'darkMetal': mat_metal('darkMetal_pbr', '#2c2f33', 0.42),
     'wood': mat_wood(),
     'screen': mat_screen(),
@@ -566,7 +646,7 @@ REPLACE = {
     'pavingWarm': mat_paving('pavingWarm', rgba('#cbb796'), 1),
     'asphalt': mat_asphalt(),
     'marking': mat_simple('marking_pbr', **{'Base Color': rgba('#e8e6df'), 'Roughness': 0.7}),
-    'water': mat_water('water', '#0c262c', '#2c5a5e'),
+    'water': mat_water('water', '#0c262c', '#1f3d3b'),
     'pool': mat_water('pool', '#2b8aa0', '#6fd0dc'),
     'solar': mat_solar(),
     'court': mat_simple('court_pbr', **{'Base Color': rgba('#356e62'), 'Roughness': 0.85}),
@@ -580,7 +660,20 @@ REPLACE = {
     'carPaint': mat_car(),
 }
 LEAF = REPLACE['hedge']
-CORE = mat_simple('leafCore_pbr', **{'Base Color': rgba('#1e2e15'), 'Roughness': 0.95})
+def mat_core():
+    m, nt, out = new_mat('leafCore_pbr')
+    b = principled(nt, out, Roughness=0.95)
+    tc = node(nt, 'ShaderNodeTexCoord', (-900, 0))
+    vo = node(nt, 'ShaderNodeTexVoronoi', (-650, 0), in_Scale=4.0)
+    link(nt, tc.outputs['Object'], vo.inputs['Vector'])
+    col = ramp(nt, vo.outputs['Distance'], [(0.0, rgba('#2c4419')), (0.5, rgba('#16240e')), (1.0, rgba('#0b1407'))], (-400, 100))
+    link(nt, col.outputs[0], b.inputs['Base Color'])
+    bp = bump(nt, vo.outputs['Distance'], 0.8, (-100, -200))
+    link(nt, bp.outputs[0], b.inputs['Normal'])
+    return m
+
+
+CORE = mat_core()
 BLADE = mat_grass_blade()
 
 # daraxt tojlari va butalar — almashtirishdan oldin aniqlaymiz
@@ -639,7 +732,20 @@ def build_leaf_group():
     ntex = N.new('ShaderNodeTexNoise')
     ntex.inputs['Scale'].default_value = 0.35
     ntex.inputs['Detail'].default_value = 3
-    L.new(npos.outputs[0], ntex.inputs['Vector'])
+    selfo = N.new('GeometryNodeSelfObject')
+    oinf = N.new('GeometryNodeObjectInfo')
+    L.new(selfo.outputs[0], oinf.inputs['Object'])
+    padd = N.new('ShaderNodeVectorMath')
+    padd.operation = 'ADD'
+    L.new(npos.outputs[0], padd.inputs[0])
+    L.new(oinf.outputs['Location'], padd.inputs[1])
+    L.new(padd.outputs[0], ntex.inputs['Vector'])
+    wn = N.new('ShaderNodeTexWhiteNoise')
+    L.new(oinf.outputs['Location'], wn.inputs['Vector'])
+    seedm = N.new('ShaderNodeMath')
+    seedm.operation = 'MULTIPLY'
+    seedm.inputs[1].default_value = 9973
+    L.new(wn.outputs['Value'], seedm.inputs[0])
     nsub = N.new('ShaderNodeMath')
     nsub.operation = 'MULTIPLY_ADD'
     nsub.inputs[1].default_value = 2.6
@@ -656,10 +762,11 @@ def build_leaf_group():
     dist = N.new('GeometryNodeDistributePointsOnFaces')
     dist.inputs['Density'].default_value = ARGS.leaf_density
     L.new(lumpy.outputs[0], dist.inputs['Mesh'])
+    L.new(seedm.outputs[0], dist.inputs['Seed'])
     # barglarni tojning ichiga/tashqarisiga tarqatish (hajm va notekis silueti uchun)
     rnd_off = N.new('FunctionNodeRandomValue')
     rnd_off.data_type = 'FLOAT'
-    rnd_off.inputs['Min'].default_value = -1.3
+    rnd_off.inputs['Min'].default_value = -0.55
     rnd_off.inputs['Max'].default_value = 0.45
     nrm_scale = N.new('ShaderNodeVectorMath')
     nrm_scale.operation = 'SCALE'
@@ -696,7 +803,13 @@ def build_leaf_group():
     L.new(rv.outputs['Value'], store.inputs['Value'])
     setm = N.new('GeometryNodeSetMaterial')
     setm.inputs['Material'].default_value = LEAF
-    L.new(store.outputs[0], setm.inputs['Geometry'])
+    store2 = N.new('GeometryNodeStoreNamedAttribute')
+    store2.data_type = 'FLOAT'
+    store2.domain = 'INSTANCE'
+    store2.inputs['Name'].default_value = 'treerand'
+    L.new(store.outputs[0], store2.inputs['Geometry'])
+    L.new(wn.outputs['Value'], store2.inputs['Value'])
+    L.new(store2.outputs[0], setm.inputs['Geometry'])
     # ichki qorong‘i yadro (orqasi ko‘rinmasligi uchun)
     core_t = N.new('GeometryNodeTransform')
     core_t.inputs['Scale'].default_value = (0.8, 0.8, 0.8)
@@ -772,7 +885,7 @@ log(f'{n_br} ta shox')
 
 # ---------------------------------------------------------------- yer, kontekst, tog‘lar
 log('yer va tog‘lar')
-bpy.ops.mesh.primitive_plane_add(size=9000, location=(0, 0, -0.08))
+bpy.ops.mesh.primitive_plane_add(size=160000, location=(0, 0, -0.08))
 ground = bpy.context.active_object
 ground.name = 'kontekst-yer'
 gm, gnt, gout = new_mat('field_pbr')
@@ -781,7 +894,7 @@ gtc = node(gnt, 'ShaderNodeTexCoord', (-900, 0))
 gn1 = noise(gnt, (-600, 150), scale=0.004, detail=6, coord=gtc.outputs['Object'])
 gn2 = noise(gnt, (-600, -150), scale=0.05, detail=6, coord=gtc.outputs['Object'])
 gcol = ramp(gnt, gn1.outputs['Fac'], [(0.3, rgba('#6f6a48')), (0.5, rgba('#857e5c')), (0.7, rgba('#5f6b3c'))], (-300, 150))
-gmix = mix_rgb(gnt, gcol.outputs[0], gn2.outputs['Color'], 0.3, 'MULTIPLY', (-50, 150))
+gmix = mix_rgb(gnt, gcol.outputs[0], gn2.outputs['Fac'], 0.3, 'MULTIPLY', (-50, 150))
 link(gnt, gmix, gb.inputs['Base Color'])
 ground.data.materials.append(gm)
 
@@ -793,9 +906,9 @@ rnd = random.Random(1234)
 for j in range(rows + 1):
     for i in range(seg + 1):
         a = math.radians(-10 + i / seg * 110)
-        d = 7500 + j * 800
+        d = 38000 + j * 5000
         ridge = max(0, math.sin(i * 0.16) * 0.5 + math.sin(i * 0.05 + 1) * 0.8 + math.sin(i * 0.41) * 0.25 + 0.7)
-        hgt = 0 if j == 0 else (300 + ridge * 700 + rnd.random() * 140) * (j / rows) ** 0.6 * (0.6 + 0.4 * math.sin(i / seg * math.pi))
+        hgt = 0 if j == 0 else 2.0 * (300 + ridge * 700 + rnd.random() * 140) * (j / rows) ** 0.6 * (0.6 + 0.4 * math.sin(i / seg * math.pi))
         verts.append(bl(math.sin(a) * d, hgt - 20, -math.cos(a) * d))
 for j in range(rows):
     for i in range(seg):
@@ -809,6 +922,69 @@ mtm, mtnt, mtout = new_mat('mountain_pbr')
 mtb = principled(mtnt, mtout, Roughness=1.0)
 mtb.inputs['Base Color'].default_value = rgba('#8c8a80')
 mt.data.materials.append(mtm)
+
+# shahar konteksti (bloklar + ko‘cha daraxtlari) va havo perspektivasi
+HAZE = []
+
+
+def add_haze(mat, start=250.0, end=6000.0, maxf=0.65):
+    nt = mat.node_tree
+    out = next(n for n in nt.nodes if n.type == 'OUTPUT_MATERIAL')
+    surf = out.inputs['Surface'].links[0].from_socket
+    cd = nt.nodes.new('ShaderNodeCameraData')
+    mr = nt.nodes.new('ShaderNodeMapRange')
+    mr.inputs['From Min'].default_value = start
+    mr.inputs['From Max'].default_value = end
+    mr.inputs['To Max'].default_value = maxf
+    nt.links.new(cd.outputs['View Distance'], mr.inputs['Value'])
+    em = nt.nodes.new('ShaderNodeEmission')
+    mix = nt.nodes.new('ShaderNodeMixShader')
+    nt.links.new(mr.outputs['Result'], mix.inputs['Fac'])
+    nt.links.new(surf, mix.inputs[1])
+    nt.links.new(em.outputs[0], mix.inputs[2])
+    nt.links.new(mix.outputs[0], out.inputs['Surface'])
+    HAZE.append(em)
+
+
+ctxm = REPLACE['context']
+cnt = ctxm.node_tree
+cpb = next(n for n in cnt.nodes if n.type == 'BSDF_PRINCIPLED')
+cpb.inputs['Roughness'].default_value = 0.9
+cgeo = node(cnt, 'ShaderNodeNewGeometry', (-900, 0))
+cvor = node(cnt, 'ShaderNodeTexVoronoi', (-700, 0), in_Scale=0.03)
+link(cnt, cgeo.outputs['Position'], cvor.inputs['Vector'])
+ccol = ramp(cnt, cvor.outputs['Color'], [(0.0, rgba('#857d70')), (0.3, rgba('#9a9387')), (0.55, rgba('#8f8576')), (0.8, rgba('#a8a092'))], (-450, 0))
+ccol.color_ramp.interpolation = 'CONSTANT'
+link(cnt, ccol.outputs[0], cpb.inputs['Base Color'])
+rc = random.Random(77)
+bmc, bmt = bmesh.new(), bmesh.new()
+for _ in range(2600):
+    r, a = rc.uniform(300, 2600), rc.uniform(0, math.tau)
+    x, z = math.cos(a) * r, math.sin(a) * r
+    if (abs(x) < 250 and abs(z) < 210) or (148 < z < 176 and abs(x) < 760):
+        continue
+    w_, d_ = rc.uniform(14, 44), rc.uniform(12, 26)
+    h_ = rc.choice((5, 8, 11, 14, 14, 17, 20, 27, 36))
+    res = bmesh.ops.create_cube(bmc, size=1.0)
+    M = Matrix.Translation(bl(x, h_ / 2, z)) @ Matrix.Rotation(rc.choice((0.0, math.pi / 2)) + rc.uniform(-0.04, 0.04), 4, 'Z') @ Matrix.Diagonal((w_, d_, h_, 1.0))
+    bmesh.ops.transform(bmc, matrix=M, verts=res['verts'])
+for _ in range(3000):
+    r, a = rc.uniform(260, 2600), rc.uniform(0, math.tau)
+    x, z = math.cos(a) * r, math.sin(a) * r
+    if abs(x) < 240 and abs(z) < 200:
+        continue
+    rr_ = rc.uniform(2.5, 5.0)
+    res = bmesh.ops.create_icosphere(bmt, subdivisions=1, radius=rr_)
+    bmesh.ops.translate(bmt, vec=bl(x, rr_ * 1.1, z), verts=res['verts'])
+for nm_, bmx, mat_ in (('shahar', bmc, ctxm), ('shahar-daraxt', bmt, CORE)):
+    mex = bpy.data.meshes.new(nm_)
+    bmx.to_mesh(mex)
+    bmx.free()
+    ox = bpy.data.objects.new(nm_, mex)
+    scene.collection.objects.link(ox)
+    ox.data.materials.append(mat_)
+for m_ in (gm, mtm, ctxm, CORE):
+    add_haze(m_)
 
 # ---------------------------------------------------------------- o‘t (faqat yaqin kadrlar uchun)
 log('o‘t')
@@ -977,7 +1153,9 @@ sky.air_density = 1.0
 sky.aerosol_density = 1.6
 sky.ozone_density = 1.0
 bgn = wnt.nodes['Background']
-wnt.links.new(sky.outputs[0], bgn.inputs['Color'])
+SKY_HS = wnt.nodes.new('ShaderNodeHueSaturation')
+wnt.links.new(sky.outputs[0], SKY_HS.inputs['Color'])
+wnt.links.new(SKY_HS.outputs[0], bgn.inputs['Color'])
 bgn.inputs['Strength'].default_value = 1.0
 
 sun_data = bpy.data.lights.new('Quyosh', 'SUN')
@@ -990,22 +1168,56 @@ cam = bpy.data.objects.new('Kamera', cam_data)
 scene.collection.objects.link(cam)
 scene.camera = cam
 cam_data.clip_start = 0.1
-cam_data.clip_end = 30000
+cam_data.clip_end = 250000
 cam_data.sensor_width = 36
 
-# kechki fasad yoritgichlari
+# kechki fasad yoritgichlari: har ustunga tor uplight, yozuvga past quvvatli chiziqli grazer, ko‘cha chiroqlariga nuqta yorug‘lik
 floods = []
-for (fx, fy, fz, tx, ty, tz, p) in [(-16, 0.6, 112, -4, 12, 96, 9000), (16, 0.6, 112, 4, 12, 96, 9000), (76, 0.6, 118, 76, 6, 98, 2500)]:
+
+
+def add_spot(pos, tgt, power, ang, blend, soft):
     ld = bpy.data.lights.new('Projektor', 'SPOT')
-    ld.spot_size = math.radians(42)
-    ld.spot_blend = 0.6
-    ld.color = (1.0, 0.86, 0.68)
+    ld.spot_size = math.radians(ang)
+    ld.spot_blend = blend
+    ld.shadow_soft_size = soft
+    ld.color = (1.0, 0.82, 0.62)
     lo = bpy.data.objects.new('Projektor', ld)
     scene.collection.objects.link(lo)
-    lo.location = bl(fx, fy, fz)
-    d = bl(tx, ty, tz) - lo.location
-    lo.rotation_euler = d.to_track_quat('-Z', 'Y').to_euler()
-    floods.append((ld, p))
+    lo.location = bl(*pos)
+    lo.rotation_euler = (bl(*tgt) - lo.location).to_track_quat('-Z', 'Y').to_euler()
+    floods.append((ld, power))
+
+
+for k in range(8):  # buildings.ts: ustunlar cx = -21 + 6k, old yuzasi z≈97.6, podium y=1.2
+    cx = -21 + 6 * k
+    add_spot((cx, 1.25, 98.3), (cx, 16.9, 97.7), 1000, 14, 0.4, 0.05)
+add_spot((76, 0.6, 118), (76, 6, 98), 2500, 42, 0.6, 0.25)  # Conference Centre
+ld = bpy.data.lights.new('YozuvGrazer', 'AREA')
+ld.shape = 'RECTANGLE'
+ld.size, ld.size_y = 34.0, 0.2
+ld.spread = math.radians(30)
+ld.color = (1.0, 0.85, 0.66)
+lo = bpy.data.objects.new('YozuvGrazer', ld)
+scene.collection.objects.link(lo)
+lo.location = bl(0, 17.45, 99.3)
+lo.rotation_euler = (math.radians(166), 0.0, 0.0)
+floods.append((ld, 200))
+
+LAMP_LIGHTS = []
+for o in imported:
+    if not any(s.material is REPLACE['lamp'] for s in o.material_slots):
+        continue
+    o.visible_shadow = False  # yorug‘lik chiroq korpusi ichidan chiqa olsin
+    bb = [o.matrix_world @ Vector(c) for c in o.bound_box]
+    c = sum(bb, Vector()) / 8
+    tall = max(v.z for v in bb) - min(v.z for v in bb) > 0.5  # 0.9 m bollard, aks holda ustun boshi
+    ld = bpy.data.lights.new('Chiroq', 'POINT')
+    ld.shadow_soft_size = 0.1
+    ld.color = (1.0, 0.78, 0.55)
+    lo = bpy.data.objects.new('Chiroq', ld)
+    lo.location = c
+    scene.collection.objects.link(lo)
+    LAMP_LIGHTS.append((ld, 20.0 if tall else 150.0))
 
 # ---------------------------------------------------------------- render sozlamalari
 rs = scene.render
@@ -1069,12 +1281,18 @@ def setup_view(name, v):
     warm = Vector((1.0, 0.97, 0.93)).lerp(Vector((1.0, 0.72, 0.48)), low * 0.8)
     sun_data.color = warm
     bgn.inputs['Strength'].default_value = 0.55 if not night else 2.0
-    em = 6.0 if night else 0.0
+    em = 1.2 if night else 0.0
     MATS['glass_emission'].inputs['Emission Strength'].default_value = em
-    MATS['glassPlain_emission'].inputs['Emission Strength'].default_value = 0.45 if night else 0.0
+    MATS['glassPlain_emission'].inputs['Emission Strength'].default_value = 0.18 if night else 0.0
     MATS['lamp_pbr_emission'].inputs['Emission Strength'].default_value = 25.0 if night else 0.0
     for ld, p in floods:
         ld.energy = p if night else 0.0
+    for ld, p in LAMP_LIGHTS:
+        ld.energy = p if night else 0.0
+    SKY_HS.inputs['Saturation'].default_value = 0.75 if night else 1.0
+    for em_ in HAZE:
+        em_.inputs['Color'].default_value = v.get('haze', (0.62, 0.68, 0.76, 1.0))
+        em_.inputs['Strength'].default_value = 0.0 if night else v.get('haze_k', 1.0)
     vs.exposure = -0.35 if not night else 1.0
     # kamera
     p = bl(*v['pos'])
@@ -1082,6 +1300,7 @@ def setup_view(name, v):
     cam.location = p
     cam.rotation_euler = (t - p).to_track_quat('-Z', 'Y').to_euler()
     cam_data.lens = v['lens']
+    cam_data.shift_y = v.get('shift', 0.0)
     # o‘t
     for md in GRASS_MODS:
         md.show_render = bool(v.get('grass'))
