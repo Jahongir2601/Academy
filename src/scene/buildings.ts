@@ -108,6 +108,9 @@ export function addBlock(B: GeoBuilder, o: BlockOpts) {
   // tom plitasi
   if (o.roof !== false) B.box('roof', x0 + 0.25, x1 - 0.25, gy1 - 0.35, gy1 + 0.12, z0 + 0.25, z1 - 0.25, STONE_UV);
 
+  const ext = (s: Side) => o.sides?.[s] === undefined || o.sides?.[s] === true;
+  // har bir tomon boshi/oxiridagi qo‘shni tomon (burchak haqiqiymi yoki ikki blok tutashuvimi)
+  const ADJ: Record<Side, [Side, Side]> = { n: ['w', 'e'], s: ['w', 'e'], w: ['n', 's'], e: ['n', 's'] };
   const sides: Side[] = ['n', 's', 'e', 'w'];
   for (const side of sides) {
     const sg = sideGeom(o.rect, side);
@@ -115,8 +118,12 @@ export function addBlock(B: GeoBuilder, o: BlockOpts) {
     for (const [ia, ib] of ivs) {
       const len = ib - ia;
       if (len < 0.5) continue;
-      const atStart = Math.abs(ia - sg.a0) < 0.01;
-      const atEnd = Math.abs(ib - sg.a1) < 0.01;
+      // atStart/atEnd — haqiqiy tashqi burchak; joinStart/joinEnd — halqa binoning bloklari tutashuvi
+      const touchStart = Math.abs(ia - sg.a0) < 0.01;
+      const touchEnd = Math.abs(ib - sg.a1) < 0.01;
+      const atStart = touchStart && ext(ADJ[side][0]);
+      const atEnd = touchEnd && ext(ADJ[side][1]);
+      const joinEnd = touchEnd && !atEnd;
       const ga = atStart ? ia + ins : ia;
       const gb = atEnd ? ib - ins : ib;
 
@@ -131,8 +138,8 @@ export function addBlock(B: GeoBuilder, o: BlockOpts) {
       // bir tekislikda ustma-ust tushmasligi uchun
       // (burchakdagi uzaytma faqat shimol/janub parapetida)
       const ew = sg.along === 'z' ? 0.003 : 0;
-      const ext = sg.along === 'x' ? 0.15 : 0;
-      sideBox(B, frame, sg, ia - (atStart ? ext : 0), ib + (atEnd ? ext : 0), -0.15 + ew, Math.max(0.5, ins * 0.7), gy1 - 0.15 + ew, top - ew);
+      const pExt = sg.along === 'x' ? 0.15 : 0;
+      sideBox(B, frame, sg, ia - (atStart ? pExt : 0), ib + (atEnd ? pExt : 0), -0.15 + ew, Math.max(0.5, ins * 0.7), gy1 - 0.15 + ew, top - ew);
 
       const n = Math.max(1, Math.round(len / o.bay));
       const step = len / n;
@@ -148,7 +155,7 @@ export function addBlock(B: GeoBuilder, o: BlockOpts) {
       if (finsHere) {
         for (let k = 0; k <= n; k++) {
           if (k === 0 && atStart) continue;
-          if (k === n && atEnd) continue;
+          if (k === n && (atEnd || joinEnd)) continue; // tutashuvda pilasterni qo‘shni blok qo‘yadi
           const c = ia + k * step;
           // 4 mm tashqariga: qavat kamari bilan bir tekislikda ustma-ust tushmasligi uchun (ray tracing’da qora dog‘ beradi)
           sideBox(B, finKey, sg, c - o.finW / 2, c + o.finW / 2, -0.004, ins + 0.05, gy0, gy1 - 0.15);
@@ -174,7 +181,6 @@ export function addBlock(B: GeoBuilder, o: BlockOpts) {
   }
 
   // burchak pilonlari (ikkala yon ham tashqi bo‘lsa)
-  const ext = (s: Side) => o.sides?.[s] === undefined || o.sides?.[s] === true;
   const cw = Math.max(o.finW * 1.5, ins + 0.4);
   const corners: [number, number, Side, Side][] = [
     [x0, z0, 'n', 'w'], [x1, z0, 'n', 'e'], [x0, z1, 's', 'w'], [x1, z1, 's', 'e'],

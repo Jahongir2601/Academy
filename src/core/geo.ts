@@ -52,7 +52,8 @@ export class GeoBuilder {
     if (w < 1e-4 || h < 1e-4 || d < 1e-4) return;
     const g = new THREE.BoxGeometry(w, h, d);
     g.translate((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
-    this.add(key, g, uv);
+    // BoxGeometry’ning o‘z UV’lari har yuzada 0..1 — tekstura cho‘zilmasligi uchun doim metrli UV
+    this.add(key, g, uv ?? { su: 1, sv: 1 });
   }
 
   /** Markaz va o‘lcham bilan, Y o‘qi atrofida burilgan quti. */
@@ -60,7 +61,7 @@ export class GeoBuilder {
     const g = new THREE.BoxGeometry(w, h, d);
     if (rotY) g.rotateY(rotY);
     g.translate(cx, cy, cz);
-    this.add(key, g, uv);
+    this.add(key, g, uv ?? { su: 1, sv: 1 });
   }
 
   add(key: string, g: THREE.BufferGeometry, uv?: UVMode) {

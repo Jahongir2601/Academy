@@ -31,7 +31,7 @@ ap.add_argument('--views', default='all')
 ap.add_argument('--samples', type=int, default=160)
 ap.add_argument('--res', default='1920x1080')
 ap.add_argument('--grass-density', type=float, default=26.0)
-ap.add_argument('--leaf-density', type=float, default=42.0)
+ap.add_argument('--leaf-density', type=float, default=52.0)
 ap.add_argument('--threads', type=int, default=0)
 ap.add_argument('--save-blend', default='')
 ap.add_argument('--format', default='PNG', choices=['PNG', 'JPEG'])
@@ -408,7 +408,8 @@ def mat_paving(name, tint, scale):
 
 def mat_asphalt():
     m, nt, out = new_mat('asphalt_pbr')
-    b = principled(nt, out, Roughness=0.9)
+    b = principled(nt, out, Roughness=1.0)
+    b.inputs['Specular IOR Level'].default_value = 0.3
     tc = node(nt, 'ShaderNodeTexCoord', (-900, 0))
     n = noise(nt, (-600, 150), scale=60, detail=8, rough=0.8, coord=tc.outputs['Object'])
     n2 = noise(nt, (-600, -150), scale=0.25, detail=4, coord=tc.outputs['Object'])
@@ -666,7 +667,7 @@ def mat_core():
     tc = node(nt, 'ShaderNodeTexCoord', (-900, 0))
     vo = node(nt, 'ShaderNodeTexVoronoi', (-650, 0), in_Scale=4.0)
     link(nt, tc.outputs['Object'], vo.inputs['Vector'])
-    col = ramp(nt, vo.outputs['Distance'], [(0.0, rgba('#2c4419')), (0.5, rgba('#16240e')), (1.0, rgba('#0b1407'))], (-400, 100))
+    col = ramp(nt, vo.outputs['Distance'], [(0.0, rgba('#3b5a22')), (0.5, rgba('#2a431a')), (1.0, rgba('#1d3013'))], (-400, 100))
     link(nt, col.outputs[0], b.inputs['Base Color'])
     bp = bump(nt, vo.outputs['Distance'], 0.8, (-100, -200))
     link(nt, bp.outputs[0], b.inputs['Normal'])
@@ -766,7 +767,7 @@ def build_leaf_group():
     # barglarni tojning ichiga/tashqarisiga tarqatish (hajm va notekis silueti uchun)
     rnd_off = N.new('FunctionNodeRandomValue')
     rnd_off.data_type = 'FLOAT'
-    rnd_off.inputs['Min'].default_value = -0.55
+    rnd_off.inputs['Min'].default_value = -0.95
     rnd_off.inputs['Max'].default_value = 0.45
     nrm_scale = N.new('ShaderNodeVectorMath')
     nrm_scale.operation = 'SCALE'
@@ -812,7 +813,7 @@ def build_leaf_group():
     L.new(store2.outputs[0], setm.inputs['Geometry'])
     # ichki qorong‘i yadro (orqasi ko‘rinmasligi uchun)
     core_t = N.new('GeometryNodeTransform')
-    core_t.inputs['Scale'].default_value = (0.8, 0.8, 0.8)
+    core_t.inputs['Scale'].default_value = (0.62, 0.62, 0.62)
     L.new(lumpy.outputs[0], core_t.inputs['Geometry'])
     corem = N.new('GeometryNodeSetMaterial')
     corem.inputs['Material'].default_value = CORE
@@ -950,32 +951,44 @@ ctxm = REPLACE['context']
 cnt = ctxm.node_tree
 cpb = next(n for n in cnt.nodes if n.type == 'BSDF_PRINCIPLED')
 cpb.inputs['Roughness'].default_value = 0.9
-cgeo = node(cnt, 'ShaderNodeNewGeometry', (-900, 0))
-cvor = node(cnt, 'ShaderNodeTexVoronoi', (-700, 0), in_Scale=0.03)
-link(cnt, cgeo.outputs['Position'], cvor.inputs['Vector'])
-ccol = ramp(cnt, cvor.outputs['Color'], [(0.0, rgba('#857d70')), (0.3, rgba('#9a9387')), (0.55, rgba('#8f8576')), (0.8, rgba('#a8a092'))], (-450, 0))
-ccol.color_ramp.interpolation = 'CONSTANT'
+cattr = node(cnt, 'ShaderNodeAttribute', (-700, 0), attribute_type='GEOMETRY', attribute_name='blk')
+ccol = ramp(cnt, cattr.outputs['Fac'], [(0.0, rgba('#857d70')), (0.35, rgba('#9a9387')), (0.65, rgba('#8f8576')), (1.0, rgba('#a8a092'))], (-450, 0))
 link(cnt, ccol.outputs[0], cpb.inputs['Base Color'])
 rc = random.Random(77)
 bmc, bmt = bmesh.new(), bmesh.new()
+blk_layer = bmc.faces.layers.float.new('blk')
+placed = []  # (x0, x1, z0, z1) — bloklar bir-birining ustiga chiqmasin (bir tekislikdagi tomlar qora chiqadi)
 for _ in range(2600):
     r, a = rc.uniform(300, 2600), rc.uniform(0, math.tau)
     x, z = math.cos(a) * r, math.sin(a) * r
     if (abs(x) < 250 and abs(z) < 210) or (148 < z < 176 and abs(x) < 760):
         continue
     w_, d_ = rc.uniform(14, 44), rc.uniform(12, 26)
-    h_ = rc.choice((5, 8, 11, 14, 14, 17, 20, 27, 36))
+    turn = rc.choice((0.0, math.pi / 2))
+    ex, ez = (w_, d_) if turn == 0.0 else (d_, w_)
+    fx = (x - ex / 2 - 3, x + ex / 2 + 3, z - ez / 2 - 3, z + ez / 2 + 3)
+    if any(fx[0] < q[1] and q[0] < fx[1] and fx[2] < q[3] and q[2] < fx[3] for q in placed):
+        continue
+    placed.append(fx)
+    h_ = rc.choice((5, 8, 11, 14, 14, 17, 20, 27, 36)) + rc.uniform(0.1, 0.9)
     res = bmesh.ops.create_cube(bmc, size=1.0)
-    M = Matrix.Translation(bl(x, h_ / 2, z)) @ Matrix.Rotation(rc.choice((0.0, math.pi / 2)) + rc.uniform(-0.04, 0.04), 4, 'Z') @ Matrix.Diagonal((w_, d_, h_, 1.0))
+    M = Matrix.Translation(bl(x, h_ / 2, z)) @ Matrix.Rotation(turn + rc.uniform(-0.03, 0.03), 4, 'Z') @ Matrix.Diagonal((w_, d_, h_, 1.0))
     bmesh.ops.transform(bmc, matrix=M, verts=res['verts'])
+    tone = rc.random()
+    for f in {f for v in res['verts'] for f in v.link_faces}:
+        f[blk_layer] = tone
 for _ in range(3000):
     r, a = rc.uniform(260, 2600), rc.uniform(0, math.tau)
     x, z = math.cos(a) * r, math.sin(a) * r
     if abs(x) < 240 and abs(z) < 200:
         continue
+    if any(q[0] < x < q[1] and q[2] < z < q[3] for q in placed):
+        continue  # daraxt bino ichida bo‘lmasin
     rr_ = rc.uniform(2.5, 5.0)
-    res = bmesh.ops.create_icosphere(bmt, subdivisions=1, radius=rr_)
-    bmesh.ops.translate(bmt, vec=bl(x, rr_ * 1.1, z), verts=res['verts'])
+    res = bmesh.ops.create_icosphere(bmt, subdivisions=2, radius=rr_)
+    bmesh.ops.translate(bmt, vec=bl(x, rr_ * 0.95, z), verts=res['verts'])
+for f in bmt.faces:
+    f.smooth = True
 for nm_, bmx, mat_ in (('shahar', bmc, ctxm), ('shahar-daraxt', bmt, CORE)):
     mex = bpy.data.meshes.new(nm_)
     bmx.to_mesh(mex)
@@ -1195,7 +1208,7 @@ add_spot((76, 0.6, 118), (76, 6, 98), 2500, 42, 0.6, 0.25)  # Conference Centre
 ld = bpy.data.lights.new('YozuvGrazer', 'AREA')
 ld.shape = 'RECTANGLE'
 ld.size, ld.size_y = 34.0, 0.2
-ld.spread = math.radians(30)
+ld.spread = math.radians(75)
 ld.color = (1.0, 0.85, 0.66)
 lo = bpy.data.objects.new('YozuvGrazer', ld)
 scene.collection.objects.link(lo)

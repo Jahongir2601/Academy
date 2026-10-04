@@ -151,10 +151,20 @@ export function buildLandscape(I: Instancer): LandscapeResult {
   // markaziy orol: maysa + oval havza
   const oval = new THREE.Shape();
   oval.absellipse(0, 134, 22, 7, 0, Math.PI * 2, false, 0);
+  // havza cheti — hajmli tosh halqa (0..0.45 m), suv sathi chetdan pastda
   const ovalRim = new THREE.Shape();
   ovalRim.absellipse(0, 134, 23.2, 8.2, 0, Math.PI * 2, false, 0);
-  B.add('stoneDark', flatShape(ovalRim, 0.35), UV1);
-  const ovalWater = new THREE.Mesh(flatShape(oval, 0.42), m.water);
+  const rimHole = new THREE.Path();
+  rimHole.absellipse(0, 134, 22, 7, 0, Math.PI * 2, true, 0);
+  ovalRim.holes.push(rimHole);
+  const rimG = new THREE.ExtrudeGeometry(ovalRim, { depth: 0.45, bevelEnabled: false, curveSegments: 48 });
+  rimG.rotateX(Math.PI / 2);
+  rimG.translate(0, 0.45, 0);
+  B.add('stoneDark', rimG, UV1);
+  const basin = new THREE.Shape();
+  basin.absellipse(0, 134, 22.05, 7.05, 0, Math.PI * 2, false, 0);
+  B.add('stoneDark', flatShape(basin, 0.05), UV1);
+  const ovalWater = new THREE.Mesh(flatShape(oval, 0.36), m.water);
   applyWorldUV(ovalWater.geometry, UV1);
   ovalWater.receiveShadow = true;
   water.push(ovalWater);
