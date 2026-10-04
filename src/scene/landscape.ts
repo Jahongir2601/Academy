@@ -86,7 +86,7 @@ export function buildLandscape(I: Instancer): LandscapeResult {
   I.define('post', post, m.darkMetal);
   const carBody = new THREE.BoxGeometry(1.8, 0.8, 4.3);
   carBody.translate(0, 0.55, 0);
-  I.define('carBody', carBody, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35, metalness: 0.6 }));
+  I.define('carBody', carBody, new THREE.MeshStandardMaterial({ name: 'carPaint', color: 0xffffff, roughness: 0.35, metalness: 0.6 }));
   const carTop = new THREE.BoxGeometry(1.55, 0.55, 2.2);
   carTop.translate(0, 1.2, -0.2);
   I.define('carTop', carTop, m.glassPlain);

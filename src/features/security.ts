@@ -91,7 +91,7 @@ export function mountSecurity(app: App, shell: Shell) {
   const posts = new THREE.Group();
   const postG = new THREE.BoxGeometry(0.08, 2, 0.08);
   postG.translate(0, 1, 0);
-  const postM = new THREE.MeshStandardMaterial({ color: 0x3a3f43, metalness: 0.6, roughness: 0.5 });
+  const postM = new THREE.MeshStandardMaterial({ name: 'darkMetal', color: 0x3a3f43, metalness: 0.6, roughness: 0.5 });
   const segs: [number, number, number, number][] = [
     // janubda (asosiy o‘qda) va shimolda (Research orqa darvozasi) darvoza uchun bo‘shliq
     [fx0, fz0, -63, fz0], [-57, fz0, fx1, fz0], [fx1, fz0, fx1, fz1], [fx1, fz1, 6, fz1], [-6, fz1, fx0, fz1], [fx0, fz1, fx0, fz0],

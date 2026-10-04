@@ -275,7 +275,7 @@ function makeBuilding(def: BuildingDef, I: Instancer, extras: THREE.Group): Buil
       const t = textTexture('O‘ZBEKISTON MARKAZIY BANKI AKADEMIYASI', { w: 2048, h: 128, color: '#c19a5b' });
       const ins = new THREE.Mesh(
         new THREE.PlaneGeometry(36, 2.25),
-        new THREE.MeshStandardMaterial({ map: t, transparent: true, metalness: 0.7, roughness: 0.35, color: 0xffffff }),
+        new THREE.MeshStandardMaterial({ name: 'inscription', map: t, transparent: true, metalness: 0.7, roughness: 0.35, color: 0xffffff }),
       );
       ins.position.set(0, 19.6, 98.45);
       extras.add(ins);

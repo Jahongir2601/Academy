@@ -394,5 +394,9 @@ export function getMaterials(): Materials {
     ],
     waterNormal,
   };
+  // nomlar GLB eksportida saqlanadi — Blender/Twinmotion’da materialni tanib almashtirish uchun
+  for (const [key, val] of Object.entries(cached)) {
+    if (val instanceof THREE.Material) val.name = key;
+  }
   return cached;
 }
