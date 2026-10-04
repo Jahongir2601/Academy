@@ -747,7 +747,9 @@ def split_loose(o):
         for m in o.data.materials:
             me.materials.append(m)
         no = bpy.data.objects.new(f'{o.name}.{i}', me)
-        no.location = c
+        # location emas, matrix_world: keyingi qadam matrix_world’ni o‘qiydi, u esa
+        # depsgraph yangilanmaguncha birlik matritsa bo‘lib qoladi
+        no.matrix_world = Matrix.Translation(c)
         for col in o.users_collection:
             col.objects.link(no)
         out.append(no)
