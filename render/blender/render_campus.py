@@ -696,7 +696,66 @@ log(f'{slots_done} ta material sloti almashtirildi')
 log('barglar (geometry nodes)')
 
 
-log(f'daraxt tojlari va butalar: {len(TREE_OBJS)}')
+def split_loose(o):
+    """Bitta mesh’ga birlashtirilgan butalarni (tom bog‘i) alohida obyektlarga ajratadi.
+    Barg yadrosi obyekt markazi atrofida kichraytiriladi; markaz dunyo boshida qolsa,
+    yadro butadan uzoqqa — havoga «uchib» ketadi."""
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    bm.transform(o.matrix_world)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.001)
+    seen = set()
+    parts = []
+    for f in bm.faces:
+        if f in seen:
+            continue
+        seen.add(f)
+        stack, comp = [f], []
+        while stack:
+            g = stack.pop()
+            comp.append(g)
+            for e in g.edges:
+                for k in e.link_faces:
+                    if k not in seen:
+                        seen.add(k)
+                        stack.append(k)
+        parts.append(comp)
+    out = []
+    for i, comp in enumerate(parts):
+        vs = {v for f in comp for v in f.verts}
+        c = sum((v.co for v in vs), Vector()) / len(vs)
+        nb = bmesh.new()
+        vmap = {v: nb.verts.new(v.co - c) for v in vs}
+        for f in comp:
+            nb.faces.new([vmap[v] for v in f.verts]).material_index = f.material_index
+        me = bpy.data.meshes.new(f'{o.data.name}.{i}')
+        nb.to_mesh(me)
+        nb.free()
+        for m in o.data.materials:
+            me.materials.append(m)
+        no = bpy.data.objects.new(f'{o.name}.{i}', me)
+        no.location = c
+        for col in o.users_collection:
+            col.objects.link(no)
+        out.append(no)
+    bm.free()
+    bpy.data.objects.remove(o)
+    return out
+
+
+def origin_inside(o):
+    if not o.data.vertices:
+        return True
+    vs = [v.co for v in o.data.vertices]
+    return all(min(v[a] for v in vs) - 0.5 <= 0 <= max(v[a] for v in vs) + 0.5 for a in range(3))
+
+
+split = [o for o in TREE_OBJS if not origin_inside(o)]
+TREE_OBJS = [o for o in TREE_OBJS if origin_inside(o)]
+for o in split:
+    imported.remove(o)
+    TREE_OBJS += split_loose(o)
+log(f'daraxt tojlari va butalar: {len(TREE_OBJS)} ({len(split)} ta birlashgan mesh ajratildi)')
 
 
 def leaf_mesh():
