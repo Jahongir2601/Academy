@@ -31,7 +31,7 @@ ap.add_argument('--views', default='all')
 ap.add_argument('--samples', type=int, default=160)
 ap.add_argument('--res', default='1920x1080')
 ap.add_argument('--grass-density', type=float, default=26.0)
-ap.add_argument('--leaf-density', type=float, default=34.0)
+ap.add_argument('--leaf-density', type=float, default=42.0)
 ap.add_argument('--threads', type=int, default=0)
 ap.add_argument('--save-blend', default='')
 ap.add_argument('--format', default='PNG', choices=['PNG', 'JPEG'])
@@ -783,8 +783,8 @@ def build_leaf_group():
     L.new(dist.outputs['Rotation'], inst.inputs['Rotation'])
     rs = N.new('FunctionNodeRandomValue')
     rs.data_type = 'FLOAT'
-    rs.inputs['Min'].default_value = 0.14
-    rs.inputs['Max'].default_value = 0.26
+    rs.inputs['Min'].default_value = 0.12
+    rs.inputs['Max'].default_value = 0.22
     L.new(rs.outputs['Value'], inst.inputs['Scale'])
     rot = N.new('GeometryNodeRotateInstances')
     rr = N.new('FunctionNodeRandomValue')

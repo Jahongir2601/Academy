@@ -127,7 +127,10 @@ export function addBlock(B: GeoBuilder, o: BlockOpts) {
       sidePlane(B, glassKey, sg, ga, gb, ins, gy0, gy1, glassUV);
 
       // parapet + karniz
-      sideBox(B, frame, sg, ia - (atStart ? 0.15 : 0), ib + (atEnd ? 0.15 : 0), -0.15, Math.max(0.5, ins * 0.7), gy1 - 0.15, top);
+      // sharq/g‘arb parapetlari 3 mm ichkarida va pastroq — burchakda shimol/janub parapeti bilan
+      // bir tekislikda ustma-ust tushmasligi uchun
+      const ew = sg.along === 'z' ? 0.003 : 0;
+      sideBox(B, frame, sg, ia - (atStart ? 0.15 : 0), ib + (atEnd ? 0.15 : 0), -0.15 + ew, Math.max(0.5, ins * 0.7), gy1 - 0.15 + ew, top - ew);
 
       const n = Math.max(1, Math.round(len / o.bay));
       const step = len / n;
@@ -145,7 +148,8 @@ export function addBlock(B: GeoBuilder, o: BlockOpts) {
           if (k === 0 && atStart) continue;
           if (k === n && atEnd) continue;
           const c = ia + k * step;
-          sideBox(B, finKey, sg, c - o.finW / 2, c + o.finW / 2, 0, ins + 0.05, gy0, gy1 - 0.15);
+          // 4 mm tashqariga: qavat kamari bilan bir tekislikda ustma-ust tushmasligi uchun (ray tracing’da qora dog‘ beradi)
+          sideBox(B, finKey, sg, c - o.finW / 2, c + o.finW / 2, -0.004, ins + 0.05, gy0, gy1 - 0.15);
         }
       }
       // yopiq baylar va panjaralar
@@ -177,7 +181,8 @@ export function addBlock(B: GeoBuilder, o: BlockOpts) {
     if (!(ext(s1) && ext(s2))) continue;
     const sx = cx === x0 ? 1 : -1;
     const sz = cz === z0 ? 1 : -1;
-    B.box(frame, cx, cx + sx * cw, gy0, gy1 - 0.15, cz, cz + sz * cw, STONE_UV);
+    // burchak piloni ham 4 mm tashqarida — kamarlar bilan bir tekislikda bo‘lmasligi uchun
+    B.box(frame, cx - sx * 0.004, cx + sx * cw, gy0, gy1 - 0.15, cz - sz * 0.004, cz + sz * cw, STONE_UV);
   }
 }
 
